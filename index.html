@@ -125,7 +125,7 @@
 
         <div class="divider"></div>
 
-        <div class="section-label">YouTube Premium (ad-free)</div>
+        <div class="section-label">Sign in (optional)</div>
         <div id="signin-status" class="hidden">
           <div class="signin-card">
             <div class="signin-info">
@@ -151,7 +151,9 @@
             Same Google Cloud project &rarr; Credentials &rarr;
             <strong>Create OAuth 2.0 Client ID</strong> (Web application).
             Add your Render URL and http://localhost as Authorized JavaScript Origins.
-            This enables ad-free playback via your YouTube Premium account.
+            Note: signing in does <strong>not</strong> remove ads &mdash;
+            YouTube's embed player ignores third-party OAuth for ad logic.
+            It's here for future features like your subscriptions feed.
           </div>
         </div>
       </div>
