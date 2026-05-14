@@ -280,6 +280,11 @@
 
   function mountPlayer() {
     if (!state.currentVideo) return;
+    // Reset progress bar for new video
+    document.getElementById('player-elapsed').textContent = '0:00';
+    document.getElementById('player-duration').textContent = '0:00';
+    document.getElementById('player-progress').style.width = '0%';
+
     var mount = document.getElementById('player-mount');
     mount.innerHTML = '<div id="yt-player"></div>';
 
@@ -483,14 +488,16 @@
 
   // ==================== GOOGLE SIGN-IN ====================
   var tokenClient = null;
+  var gisRetries = 0;
 
   function initGoogleAuth() {
     if (!state.data.clientId) return;
     if (!window.google || !google.accounts || !google.accounts.oauth2) {
-      // GIS not loaded yet — retry shortly
-      setTimeout(initGoogleAuth, 500);
+      // GIS not loaded yet — retry up to 10 times (5 seconds)
+      if (gisRetries++ < 10) setTimeout(initGoogleAuth, 500);
       return;
     }
+    gisRetries = 0;
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: state.data.clientId,
       scope: 'openid email profile',
@@ -595,7 +602,12 @@
         if (!v) return;
         state.data.apiKey = v;
         saveData();
-        navigateBack();
+        // If no history (first visit → settings), go home; otherwise go back
+        if (state.screenHistory.length > 0) {
+          navigateBack();
+        } else {
+          navigateTo('home', { addToHistory: false });
+        }
         break;
       }
       case 'save-clientid': {
