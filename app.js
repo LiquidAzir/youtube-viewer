@@ -602,6 +602,113 @@
     }
   }
 
+  // ==================== ON-SCREEN KEYBOARD ====================
+  // 10x4 grid. Each cell is one focusable key for predictable D-pad 2D nav.
+  // Row 3 last 3 cells are action keys: space, backspace, submit.
+  var KB_ROWS = [
+    ['1','2','3','4','5','6','7','8','9','0'],
+    ['q','w','e','r','t','y','u','i','o','p'],
+    ['a','s','d','f','g','h','j','k','l',"'"],
+    ['z','x','c','v','b','n','m','SPACE','BACK','GO'],
+  ];
+  var kbBuffer = '';
+  var kbRendered = false;
+
+  function renderKeyboardGrid() {
+    if (kbRendered) return;
+    var grid = document.getElementById('kb-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    KB_ROWS.forEach(function (row, rIdx) {
+      row.forEach(function (ch, cIdx) {
+        var btn = document.createElement('button');
+        btn.className = 'kb-key focusable';
+        btn.dataset.row = rIdx;
+        btn.dataset.col = cIdx;
+        if (ch === 'SPACE') {
+          btn.classList.add('kb-action');
+          btn.textContent = '␣';
+          btn.dataset.action = 'kb-space';
+        } else if (ch === 'BACK') {
+          btn.classList.add('kb-action');
+          btn.textContent = '⌫';
+          btn.dataset.action = 'kb-backspace';
+        } else if (ch === 'GO') {
+          btn.classList.add('kb-action', 'kb-submit');
+          btn.textContent = '⏎';
+          btn.dataset.action = 'kb-submit';
+        } else {
+          btn.textContent = ch;
+          btn.dataset.action = 'kb-char';
+          btn.dataset.char = ch;
+        }
+        grid.appendChild(btn);
+      });
+    });
+    kbRendered = true;
+  }
+
+  function updateKbDisplay() {
+    var txt = document.getElementById('kb-text');
+    if (txt) txt.textContent = kbBuffer;
+  }
+
+  function openKeyboard() {
+    var input = document.getElementById('search-input');
+    kbBuffer = (input && input.value) || '';
+    navigateTo('keyboard');
+  }
+
+  function kbAppend(ch) {
+    if (kbBuffer.length >= 80) return;
+    kbBuffer += ch;
+    updateKbDisplay();
+  }
+
+  function kbBackspace() {
+    kbBuffer = kbBuffer.slice(0, -1);
+    updateKbDisplay();
+  }
+
+  function kbSubmit() {
+    var q = kbBuffer.trim();
+    if (!q) return;
+    var input = document.getElementById('search-input');
+    if (input) input.value = q;
+    // Pop the keyboard from history so back from results goes to home, not kb.
+    if (state.screenHistory[state.screenHistory.length - 1] === 'home') {
+      state.screenHistory.pop();
+      state.currentScreen = 'home';
+    }
+    runSearch(q);
+  }
+
+  function kbCancel() {
+    kbBuffer = '';
+    navigateBack();
+  }
+
+  function kbMoveFocus(direction) {
+    var current = document.activeElement;
+    var rows = KB_ROWS.length;
+    var cols = KB_ROWS[0].length;
+    var row, col;
+    if (current && current.classList.contains('kb-key')) {
+      row = parseInt(current.dataset.row, 10);
+      col = parseInt(current.dataset.col, 10);
+    } else {
+      row = 0; col = 0;
+    }
+    if (direction === 'up')         row = (row - 1 + rows) % rows;
+    else if (direction === 'down')  row = (row + 1) % rows;
+    else if (direction === 'left')  col = (col - 1 + cols) % cols;
+    else if (direction === 'right') col = (col + 1) % cols;
+    var next = document.querySelector(
+      '#kb-grid .kb-key[data-row="' + row + '"][data-col="' + col + '"]'
+    );
+    if (next) next.focus();
+  }
+
   // ==================== ACTION HANDLING ====================
   function handleAction(action, element) {
     switch (action) {
@@ -609,7 +716,11 @@
       case 'open-settings': navigateTo('settings'); break;
       case 'run-search': {
         var input = document.getElementById('search-input');
-        runSearch(input.value);
+        if (!input.value.trim()) {
+          openKeyboard();
+        } else {
+          runSearch(input.value);
+        }
         break;
       }
       case 'preset-search': {
@@ -648,6 +759,12 @@
       case 'google-signout': googleSignOut(); break;
       case 'voice-search': startVoiceSearch(); break;
       case 'toggle-play': togglePlay(); break;
+      case 'open-keyboard': openKeyboard(); break;
+      case 'kb-char': kbAppend(element.dataset.char || ''); break;
+      case 'kb-space': kbAppend(' '); break;
+      case 'kb-backspace': kbBackspace(); break;
+      case 'kb-submit': kbSubmit(); break;
+      case 'kb-cancel': kbCancel(); break;
     }
   }
 
@@ -666,6 +783,14 @@
         var sink = document.getElementById('player-focus-sink');
         if (sink) sink.focus();
       }, 50);
+    } else if (screenId === 'keyboard') {
+      renderKeyboardGrid();
+      updateKbDisplay();
+      // Focus a sensible starting key (q) so typing feels natural
+      setTimeout(function () {
+        var start = document.querySelector('#kb-grid .kb-key[data-row="1"][data-col="0"]');
+        if (start) start.focus();
+      }, 30);
     }
   }
 
@@ -687,6 +812,38 @@
           case ' ':
           case 'Enter':      togglePlay(); e.preventDefault(); return;
           case 'Escape':     navigateBack(); e.preventDefault(); return;
+        }
+        return;
+      }
+
+      // On the keyboard screen, arrows do 2D grid nav.
+      if (state.currentScreen === 'keyboard') {
+        switch (e.key) {
+          case 'ArrowUp':    kbMoveFocus('up');    e.preventDefault(); return;
+          case 'ArrowDown':  kbMoveFocus('down');  e.preventDefault(); return;
+          case 'ArrowLeft':  kbMoveFocus('left');  e.preventDefault(); return;
+          case 'ArrowRight': kbMoveFocus('right'); e.preventDefault(); return;
+          case 'Backspace':  kbBackspace(); e.preventDefault(); return;
+          case 'Enter': {
+            // If focus is on a key button, click it (handled by default below).
+            var ae2 = document.activeElement;
+            if (ae2 && ae2.classList.contains('kb-key')) {
+              ae2.click();
+              e.preventDefault();
+              return;
+            }
+            // Fallback: submit the current buffer
+            kbSubmit();
+            e.preventDefault();
+            return;
+          }
+          case 'Escape': kbCancel(); e.preventDefault(); return;
+        }
+        // Allow physical keyboard typing to work on desktop while keyboard screen is open
+        if (e.key.length === 1 && /^[\w\d\s'.,!?-]$/.test(e.key)) {
+          kbAppend(e.key.toLowerCase());
+          e.preventDefault();
+          return;
         }
         return;
       }

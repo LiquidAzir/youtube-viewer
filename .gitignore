@@ -4,3 +4,7 @@ Thumbs.db
 node_modules/
 .vscode/
 .idea/
+
+# Locally-generated QR codes (contain personal API key)
+qr-paired.png
+qr-publish.png

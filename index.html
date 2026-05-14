@@ -27,6 +27,7 @@
             data-submit-action="run-search"
             autocomplete="off">
           <button class="search-btn focusable" data-action="run-search">Go</button>
+          <button class="kb-open-btn focusable" data-action="open-keyboard" aria-label="On-screen keyboard">&#9000;</button>
           <button class="mic-btn focusable" id="mic-btn" data-action="voice-search" aria-label="Voice search">&#127908;</button>
         </div>
 
@@ -98,6 +99,22 @@
       </div>
       <!-- Hidden focus sink so D-pad/Enter/Esc events route to us, not the iframe -->
       <button id="player-focus-sink" class="focusable focus-sink" data-action="toggle-play" aria-label="Player controls"></button>
+    </div>
+
+    <!-- On-screen keyboard -->
+    <div id="keyboard" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="kb-cancel" aria-label="Cancel">&#8592;</button>
+        <h1>Search</h1>
+      </header>
+      <div class="kb-content">
+        <div class="kb-display">
+          <span class="kb-text" id="kb-text"></span><span class="kb-cursor"></span>
+        </div>
+        <div class="kb-grid" id="kb-grid">
+          <!-- Keys injected by JS -->
+        </div>
+      </div>
     </div>
 
     <!-- Settings: API key -->
