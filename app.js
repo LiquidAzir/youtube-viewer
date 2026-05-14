@@ -425,11 +425,33 @@
     });
   }
 
+  // ==================== URL PARAM BOOTSTRAP ====================
+  // Allows passing the API key via URL so you never have to type it on-device:
+  //   https://youtube-viewer.onrender.com?key=AIza...
+  // The key is saved to localStorage on first visit, then the param is stripped.
+  function bootstrapFromUrl() {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var urlKey = params.get('key');
+      if (urlKey && urlKey.length > 10) {
+        state.data.apiKey = urlKey;
+        saveData();
+        // Strip the key from the address bar so it isn't visible / bookmarked
+        if (window.history && window.history.replaceState) {
+          params.delete('key');
+          var clean = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+          window.history.replaceState(null, '', clean);
+        }
+      }
+    } catch (_) {}
+  }
+
   // ==================== INIT ====================
   function init() {
     collectScreens();
     setupEvents();
     loadData();
+    bootstrapFromUrl();
     setTimeout(function () {
       if (!state.data.apiKey) {
         navigateTo('settings', { addToHistory: false });
