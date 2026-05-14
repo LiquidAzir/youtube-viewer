@@ -27,6 +27,7 @@
             data-submit-action="run-search"
             autocomplete="off">
           <button class="search-btn focusable" data-action="run-search">Go</button>
+          <button class="mic-btn focusable" id="mic-btn" data-action="voice-search" aria-label="Voice search">&#127908;</button>
         </div>
 
         <div class="section-label" id="recent-label">Recent</div>
@@ -84,6 +85,13 @@
       <div id="player-mount" class="player-mount"></div>
       <div id="player-overlay" class="player-overlay">
         <div class="player-title" id="player-title"></div>
+        <div class="player-time">
+          <span id="player-elapsed">0:00</span>
+          <div class="progress-track">
+            <div class="progress-fill" id="player-progress"></div>
+          </div>
+          <span id="player-duration">0:00</span>
+        </div>
         <div class="player-hint">
           &#9664; -10s &middot; Enter Play/Pause &middot; &#9654; +10s &middot; Esc Back
         </div>

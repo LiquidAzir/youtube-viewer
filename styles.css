@@ -320,10 +320,58 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+/* --- Player progress bar --- */
+.player-time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.progress-track {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-track .progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent-primary);
+  border-radius: 2px;
+  transition: width 0.4s linear;
+}
 .player-hint {
   font-size: 11px;
   color: var(--text-secondary);
 }
+
+/* --- Mic / voice search button --- */
+.mic-btn {
+  padding: 0 14px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 18px;
+  border-radius: var(--radius-md);
+  min-width: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mic-btn:focus { background: var(--bg-card); }
+.mic-btn.listening {
+  background: var(--accent-primary);
+  color: #fff;
+  animation: pulse 1s ease infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
 .focus-sink {
   position: absolute;
   width: 1px;
@@ -333,5 +381,25 @@ body {
   border: 0;
   background: transparent;
 }
+
+/* --- Toast --- */
+.toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  border: 1px solid var(--accent-primary);
+  transition: transform 0.3s ease;
+  z-index: 100;
+  pointer-events: none;
+  max-width: 500px;
+  text-align: center;
+}
+.toast.visible { transform: translateX(-50%) translateY(0); }
 
 .hidden { display: none !important; }

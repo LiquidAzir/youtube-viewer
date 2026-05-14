@@ -299,6 +299,7 @@
           onReady: function (e) {
             state.playerReady = true;
             try { e.target.playVideo(); } catch (_) {}
+            startProgressTimer();
             scheduleHideOverlay();
           },
         },
@@ -317,6 +318,7 @@
   }
 
   function teardownPlayer() {
+    stopProgressTimer();
     state.playerReady = false;
     if (state.player && typeof state.player.destroy === 'function') {
       try { state.player.destroy(); } catch (_) {}
@@ -356,11 +358,48 @@
     showOverlay();
   }
 
+  // ==================== PROGRESS BAR ====================
+  var progressInterval = null;
+
+  function formatTime(seconds) {
+    var s = Math.floor(seconds || 0);
+    var m = Math.floor(s / 60);
+    s = s % 60;
+    var h = Math.floor(m / 60);
+    m = m % 60;
+    var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+    return h > 0 ? h + ':' + pad(m) + ':' + pad(s) : m + ':' + pad(s);
+  }
+
+  function updateProgress() {
+    if (!state.player || !state.playerReady) return;
+    try {
+      var cur = state.player.getCurrentTime() || 0;
+      var dur = state.player.getDuration() || 0;
+      document.getElementById('player-elapsed').textContent = formatTime(cur);
+      document.getElementById('player-duration').textContent = formatTime(dur);
+      var pct = dur > 0 ? (cur / dur) * 100 : 0;
+      document.getElementById('player-progress').style.width = pct + '%';
+    } catch (_) {}
+  }
+
+  function startProgressTimer() {
+    stopProgressTimer();
+    updateProgress();
+    progressInterval = setInterval(updateProgress, 500);
+  }
+
+  function stopProgressTimer() {
+    clearInterval(progressInterval);
+    progressInterval = null;
+  }
+
   function showOverlay() {
     var ov = document.getElementById('player-overlay');
     if (!ov) return;
     ov.classList.remove('hidden-overlay');
     scheduleHideOverlay();
+    updateProgress();
   }
 
   function scheduleHideOverlay() {
@@ -369,6 +408,75 @@
       var ov = document.getElementById('player-overlay');
       if (ov) ov.classList.add('hidden-overlay');
     }, 3000);
+  }
+
+  // ==================== VOICE SEARCH ====================
+  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var voiceRecognition = null;
+
+  function startVoiceSearch() {
+    if (!SpeechRecognition) {
+      showToast('Voice search not supported on this device');
+      return;
+    }
+    var micBtn = document.getElementById('mic-btn');
+
+    // If already listening, stop
+    if (voiceRecognition) {
+      voiceRecognition.abort();
+      voiceRecognition = null;
+      if (micBtn) micBtn.classList.remove('listening');
+      return;
+    }
+
+    voiceRecognition = new SpeechRecognition();
+    voiceRecognition.lang = 'en-US';
+    voiceRecognition.interimResults = false;
+    voiceRecognition.maxAlternatives = 1;
+
+    if (micBtn) micBtn.classList.add('listening');
+
+    voiceRecognition.onresult = function (event) {
+      var transcript = event.results[0][0].transcript;
+      document.getElementById('search-input').value = transcript;
+      if (micBtn) micBtn.classList.remove('listening');
+      voiceRecognition = null;
+      runSearch(transcript);
+    };
+
+    voiceRecognition.onerror = function (event) {
+      if (micBtn) micBtn.classList.remove('listening');
+      voiceRecognition = null;
+      if (event.error === 'no-speech') {
+        showToast('No speech detected — try again');
+      } else if (event.error === 'not-allowed') {
+        showToast('Microphone access denied');
+      } else {
+        showToast('Voice error: ' + event.error);
+      }
+    };
+
+    voiceRecognition.onend = function () {
+      if (micBtn) micBtn.classList.remove('listening');
+      voiceRecognition = null;
+    };
+
+    voiceRecognition.start();
+  }
+
+  function showToast(message) {
+    var toast = document.getElementById('toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'toast';
+      toast.className = 'toast';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.className = 'toast';
+    toast.offsetHeight;
+    toast.classList.add('visible');
+    setTimeout(function () { toast.classList.remove('visible'); }, 3000);
   }
 
   // ==================== ACTION HANDLING ====================
@@ -399,6 +507,7 @@
         navigateBack();
         break;
       }
+      case 'voice-search': startVoiceSearch(); break;
       case 'toggle-play': togglePlay(); break;
     }
   }
