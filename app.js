@@ -224,7 +224,16 @@
       btn.querySelector('.result-channel').textContent = snip.channelTitle || '';
       listEl.appendChild(btn);
     });
-    focusFirst(screens.results);
+    // Land focus on the first result (not the header back button) and scroll to top.
+    var content = screens.results.querySelector('.content');
+    if (content) content.scrollTop = 0;
+    var firstResult = listEl.querySelector('.result-item');
+    if (firstResult) {
+      firstResult.focus();
+      firstResult.scrollIntoView({ block: 'start' });
+    } else {
+      focusFirst(screens.results);
+    }
   }
 
   // ==================== WATCH HISTORY ====================
@@ -403,8 +412,9 @@
 
   function showOverlay() {
     var ov = document.getElementById('player-overlay');
-    if (!ov) return;
-    ov.classList.remove('hidden-overlay');
+    var chip = document.getElementById('player-back-chip');
+    if (ov) ov.classList.remove('hidden-overlay');
+    if (chip) chip.classList.remove('hidden-overlay');
     scheduleHideOverlay();
     updateProgress();
   }
@@ -413,7 +423,9 @@
     clearTimeout(state.overlayTimer);
     state.overlayTimer = setTimeout(function () {
       var ov = document.getElementById('player-overlay');
+      var chip = document.getElementById('player-back-chip');
       if (ov) ov.classList.add('hidden-overlay');
+      if (chip) chip.classList.add('hidden-overlay');
     }, 3000);
   }
 
