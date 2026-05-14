@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=600, height=600, initial-scale=1.0, user-scalable=no">
+  <title>YouTube Viewer</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- Home: search + recent + presets -->
+    <div id="home" class="screen">
+      <header class="header">
+        <h1>YouTube</h1>
+        <button class="header-btn focusable" data-action="open-settings" aria-label="Settings">&#9881;</button>
+      </header>
+      <div class="content">
+        <div class="search-row">
+          <input
+            type="text"
+            id="search-input"
+            class="text-input focusable"
+            placeholder="Search YouTube"
+            data-submit-action="run-search"
+            autocomplete="off">
+          <button class="search-btn focusable" data-action="run-search">Go</button>
+        </div>
+
+        <div class="section-label" id="recent-label">Recent</div>
+        <div class="list-container" id="recent-list">
+          <!-- Recent searches rendered here -->
+        </div>
+
+        <div class="section-label">Try</div>
+        <div class="list-container" id="preset-list">
+          <button class="list-item focusable" data-action="preset-search" data-query="lofi hip hop radio">
+            <span class="list-item-icon">&#9835;</span>
+            <span class="list-item-content"><span class="list-item-title">Lofi hip hop radio</span></span>
+          </button>
+          <button class="list-item focusable" data-action="preset-search" data-query="NASA live earth from ISS">
+            <span class="list-item-icon">&#9728;</span>
+            <span class="list-item-content"><span class="list-item-title">Earth from the ISS</span></span>
+          </button>
+          <button class="list-item focusable" data-action="preset-search" data-query="nature documentary 4k">
+            <span class="list-item-icon">&#127794;</span>
+            <span class="list-item-content"><span class="list-item-title">Nature 4K</span></span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results: list of videos -->
+    <div id="results" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back" aria-label="Back">&#8592;</button>
+        <h1 id="results-title">Results</h1>
+      </header>
+      <div class="content">
+        <div id="results-loading" class="loading-container hidden">
+          <div class="loading-spinner"></div>
+          <div class="loading-text">Searching&hellip;</div>
+        </div>
+        <div id="results-error" class="error-container hidden">
+          <div class="error-icon">&#9888;</div>
+          <div class="error-message" id="results-error-message">Search failed</div>
+          <button class="nav-item focusable" data-action="back">Back</button>
+        </div>
+        <div class="list-container" id="results-list">
+          <!-- Result items rendered here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Player: full-screen video -->
+    <div id="player" class="screen hidden">
+      <div id="player-mount" class="player-mount"></div>
+      <div id="player-overlay" class="player-overlay">
+        <div class="player-title" id="player-title"></div>
+        <div class="player-hint">
+          &#9664; -10s &middot; Enter Play/Pause &middot; &#9654; +10s &middot; Esc Back
+        </div>
+      </div>
+      <!-- Hidden focus sink so D-pad/Enter/Esc events route to us, not the iframe -->
+      <button id="player-focus-sink" class="focusable focus-sink" data-action="toggle-play" aria-label="Player controls"></button>
+    </div>
+
+    <!-- Settings: API key -->
+    <div id="settings" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back" aria-label="Back">&#8592;</button>
+        <h1>Settings</h1>
+      </header>
+      <div class="content">
+        <div class="section-label">YouTube Data API key</div>
+        <input
+          type="text"
+          id="apikey-input"
+          class="text-input focusable"
+          placeholder="AIza&hellip;"
+          data-submit-action="save-apikey"
+          autocomplete="off"
+          spellcheck="false">
+        <button class="nav-item primary focusable" data-action="save-apikey">Save</button>
+        <div class="help-text">
+          Get a free key at console.cloud.google.com &rarr; enable
+          <strong>YouTube Data API v3</strong> &rarr; Credentials &rarr; Create API key.
+          Free tier: 10,000 units/day (~100 searches).
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script src="app.js"></script>
+</body>
+</html>
