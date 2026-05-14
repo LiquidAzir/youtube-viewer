@@ -122,11 +122,44 @@
           <strong>YouTube Data API v3</strong> &rarr; Credentials &rarr; Create API key.
           Free tier: 10,000 units/day (~100 searches).
         </div>
+
+        <div class="divider"></div>
+
+        <div class="section-label">YouTube Premium (ad-free)</div>
+        <div id="signin-status" class="hidden">
+          <div class="signin-card">
+            <div class="signin-info">
+              <div class="signin-name" id="signin-name"></div>
+              <div class="signin-email" id="signin-email"></div>
+            </div>
+            <button class="nav-item danger focusable" data-action="google-signout">Sign out</button>
+          </div>
+        </div>
+        <div id="signin-setup">
+          <div class="section-label" style="margin-top:0">OAuth Client ID</div>
+          <input
+            type="text"
+            id="clientid-input"
+            class="text-input focusable"
+            placeholder="123456789.apps.googleusercontent.com"
+            data-submit-action="save-clientid"
+            autocomplete="off"
+            spellcheck="false">
+          <button class="nav-item primary focusable" data-action="save-clientid">Save Client ID</button>
+          <button class="nav-item focusable" id="google-signin-btn" data-action="google-signin">Sign in with Google</button>
+          <div class="help-text">
+            Same Google Cloud project &rarr; Credentials &rarr;
+            <strong>Create OAuth 2.0 Client ID</strong> (Web application).
+            Add your Render URL and http://localhost as Authorized JavaScript Origins.
+            This enables ad-free playback via your YouTube Premium account.
+          </div>
+        </div>
       </div>
     </div>
 
   </div>
   <script src="https://www.youtube.com/iframe_api"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="app.js"></script>
 </body>
 </html>

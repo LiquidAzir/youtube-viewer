@@ -19,8 +19,10 @@
     screenHistory: [],
     data: {
       apiKey: '',
+      clientId: '',
+      googleUser: null,  // { name, email }
       recent: [],
-      history: [],   // { id, title, thumb, time }
+      history: [],       // { id, title, thumb, time }
     },
     cache: {},
     player: null,
@@ -479,6 +481,95 @@
     setTimeout(function () { toast.classList.remove('visible'); }, 3000);
   }
 
+  // ==================== GOOGLE SIGN-IN ====================
+  var tokenClient = null;
+
+  function initGoogleAuth() {
+    if (!state.data.clientId) return;
+    if (!window.google || !google.accounts || !google.accounts.oauth2) {
+      // GIS not loaded yet — retry shortly
+      setTimeout(initGoogleAuth, 500);
+      return;
+    }
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: state.data.clientId,
+      scope: 'openid email profile',
+      callback: handleTokenResponse,
+    });
+  }
+
+  function handleTokenResponse(response) {
+    if (response.error) {
+      showToast('Sign-in failed: ' + (response.error_description || response.error));
+      return;
+    }
+    // Fetch user profile with the access token
+    fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: 'Bearer ' + response.access_token },
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (profile) {
+        state.data.googleUser = {
+          name: profile.name || profile.email,
+          email: profile.email || '',
+        };
+        saveData();
+        renderSignInStatus();
+        showToast('Signed in as ' + state.data.googleUser.name);
+      })
+      .catch(function () {
+        // Even if profile fetch fails, auth cookies are set
+        state.data.googleUser = { name: 'YouTube Premium', email: '' };
+        saveData();
+        renderSignInStatus();
+        showToast('Signed in');
+      });
+  }
+
+  function googleSignIn() {
+    if (!state.data.clientId) {
+      showToast('Enter your OAuth Client ID first');
+      return;
+    }
+    if (!tokenClient) {
+      initGoogleAuth();
+      setTimeout(function () {
+        if (tokenClient) tokenClient.requestAccessToken();
+        else showToast('Google Sign-In not ready — try again');
+      }, 600);
+      return;
+    }
+    tokenClient.requestAccessToken();
+  }
+
+  function googleSignOut() {
+    state.data.googleUser = null;
+    saveData();
+    renderSignInStatus();
+    if (window.google && google.accounts && google.accounts.id) {
+      try { google.accounts.id.disableAutoSelect(); } catch (_) {}
+    }
+    showToast('Signed out');
+  }
+
+  function renderSignInStatus() {
+    var statusEl = document.getElementById('signin-status');
+    var setupEl = document.getElementById('signin-setup');
+    var nameEl = document.getElementById('signin-name');
+    var emailEl = document.getElementById('signin-email');
+    if (!statusEl || !setupEl) return;
+
+    if (state.data.googleUser) {
+      nameEl.textContent = state.data.googleUser.name || '';
+      emailEl.textContent = state.data.googleUser.email || '';
+      statusEl.classList.remove('hidden');
+      setupEl.classList.add('hidden');
+    } else {
+      statusEl.classList.add('hidden');
+      setupEl.classList.remove('hidden');
+    }
+  }
+
   // ==================== ACTION HANDLING ====================
   function handleAction(action, element) {
     switch (action) {
@@ -507,6 +598,17 @@
         navigateBack();
         break;
       }
+      case 'save-clientid': {
+        var cid = document.getElementById('clientid-input').value.trim();
+        if (!cid) return;
+        state.data.clientId = cid;
+        saveData();
+        initGoogleAuth();
+        showToast('Client ID saved — you can now sign in');
+        break;
+      }
+      case 'google-signin': googleSignIn(); break;
+      case 'google-signout': googleSignOut(); break;
       case 'voice-search': startVoiceSearch(); break;
       case 'toggle-play': togglePlay(); break;
     }
@@ -517,8 +619,9 @@
       renderRecent();
       renderHistory();
     } else if (screenId === 'settings') {
-      var input = document.getElementById('apikey-input');
-      input.value = state.data.apiKey || '';
+      document.getElementById('apikey-input').value = state.data.apiKey || '';
+      document.getElementById('clientid-input').value = state.data.clientId || '';
+      renderSignInStatus();
     } else if (screenId === 'player') {
       mountPlayer();
       // Route key events to our handler, not the iframe
@@ -588,13 +691,22 @@
   function bootstrapFromUrl() {
     try {
       var params = new URLSearchParams(window.location.search);
+      var changed = false;
       var urlKey = params.get('key');
       if (urlKey && urlKey.length > 10) {
         state.data.apiKey = urlKey;
+        params.delete('key');
+        changed = true;
+      }
+      var urlClientId = params.get('clientId');
+      if (urlClientId && urlClientId.length > 10) {
+        state.data.clientId = urlClientId;
+        params.delete('clientId');
+        changed = true;
+      }
+      if (changed) {
         saveData();
-        // Strip the key from the address bar so it isn't visible / bookmarked
         if (window.history && window.history.replaceState) {
-          params.delete('key');
           var clean = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
           window.history.replaceState(null, '', clean);
         }
@@ -608,6 +720,7 @@
     setupEvents();
     loadData();
     bootstrapFromUrl();
+    initGoogleAuth();
     setTimeout(function () {
       if (!state.data.apiKey) {
         navigateTo('settings', { addToHistory: false });
