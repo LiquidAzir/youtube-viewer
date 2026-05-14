@@ -316,7 +316,17 @@
             state.playerReady = true;
             try { e.target.playVideo(); } catch (_) {}
             startProgressTimer();
+            // Overlay stays visible briefly so user sees the title, then state
+            // events take over (hide on play, show on pause).
             scheduleHideOverlay();
+          },
+          onStateChange: function (e) {
+            // 1=playing, 2=paused, 0=ended, 3=buffering, 5=cued
+            if (e.data === 1) {
+              hideOverlay();
+            } else if (e.data === 2 || e.data === 0) {
+              showOverlay(true);
+            }
           },
         },
       });
@@ -353,7 +363,7 @@
     // 1 = playing, 2 = paused, 3 = buffering, 5 = cued
     if (s === 1) state.player.pauseVideo();
     else state.player.playVideo();
-    showOverlay();
+    // Overlay show/hide is driven by onStateChange — don't double-toggle here.
   }
 
   function seekBy(delta) {
@@ -410,28 +420,31 @@
     progressInterval = null;
   }
 
-  function showOverlay() {
+  // showOverlay(persistent) — if persistent is true (e.g. paused/ended), the
+  // overlay stays up. Otherwise it auto-hides after 3s (e.g. seek confirmation).
+  function showOverlay(persistent) {
     var ov = document.getElementById('player-overlay');
     var chip = document.getElementById('player-back-chip');
     if (ov) ov.classList.remove('hidden-overlay');
     if (chip) chip.classList.remove('hidden-overlay');
-    scheduleHideOverlay();
     updateProgress();
+    clearTimeout(state.overlayTimer);
+    if (!persistent) scheduleHideOverlay();
+  }
+
+  function hideOverlay() {
+    clearTimeout(state.overlayTimer);
+    var ov = document.getElementById('player-overlay');
+    var chip = document.getElementById('player-back-chip');
+    // Never hide while the chip is focused — user is mid-navigation to back.
+    if (chip && document.activeElement === chip) return;
+    if (ov) ov.classList.add('hidden-overlay');
+    if (chip) chip.classList.add('hidden-overlay');
   }
 
   function scheduleHideOverlay() {
     clearTimeout(state.overlayTimer);
-    state.overlayTimer = setTimeout(function () {
-      var ov = document.getElementById('player-overlay');
-      var chip = document.getElementById('player-back-chip');
-      // Don't auto-hide while the back chip is focused — the user is mid-action.
-      if (chip && document.activeElement === chip) {
-        scheduleHideOverlay();
-        return;
-      }
-      if (ov) ov.classList.add('hidden-overlay');
-      if (chip) chip.classList.add('hidden-overlay');
-    }, 3000);
+    state.overlayTimer = setTimeout(hideOverlay, 3000);
   }
 
   // ==================== VOICE SEARCH ====================
@@ -830,11 +843,18 @@
           case 'ArrowLeft':  seekBy(-10); e.preventDefault(); return;
           case 'ArrowRight': seekBy(10);  e.preventDefault(); return;
           case 'ArrowUp':
-            if (chip && !onChip) { chip.focus(); showOverlay(); }
+            if (chip && !onChip) { chip.focus(); showOverlay(true); }
             e.preventDefault();
             return;
           case 'ArrowDown':
-            if (sink && onChip) { sink.focus(); showOverlay(); }
+            if (sink && onChip) {
+              sink.focus();
+              // If the video is playing, drop the overlay since user is back
+              // in "watch" mode. If paused/ended, leave it (state event has it).
+              var ps = state.player && state.player.getPlayerState
+                && state.player.getPlayerState();
+              if (ps === 1) hideOverlay();
+            }
             e.preventDefault();
             return;
           case ' ':
