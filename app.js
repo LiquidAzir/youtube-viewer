@@ -20,6 +20,7 @@
     data: {
       apiKey: '',
       recent: [],
+      history: [],   // { id, title, thumb, time }
     },
     cache: {},
     player: null,
@@ -209,6 +210,7 @@
       btn.dataset.action = 'play-video';
       btn.dataset.videoId = it.id.videoId;
       btn.dataset.title = snip.title || '';
+      btn.dataset.thumb = thumb.url || '';
       btn.innerHTML =
         '<img class="result-thumb" loading="lazy" alt="">' +
         '<div class="list-item-content">' +
@@ -223,8 +225,52 @@
     focusFirst(screens.results);
   }
 
+  // ==================== WATCH HISTORY ====================
+  var HISTORY_MAX = 10;
+
+  function pushHistory(videoId, title, thumb) {
+    var h = state.data.history || [];
+    // Remove dupe if already exists
+    h = h.filter(function (e) { return e.id !== videoId; });
+    h.unshift({ id: videoId, title: title || '', thumb: thumb || '', time: Date.now() });
+    state.data.history = h.slice(0, HISTORY_MAX);
+    saveData();
+  }
+
+  function renderHistory() {
+    var listEl = document.getElementById('history-list');
+    var labelEl = document.getElementById('history-label');
+    if (!listEl || !labelEl) return;
+    listEl.innerHTML = '';
+    var h = state.data.history || [];
+    if (h.length === 0) {
+      labelEl.classList.add('hidden');
+      listEl.classList.add('hidden');
+      return;
+    }
+    labelEl.classList.remove('hidden');
+    listEl.classList.remove('hidden');
+    h.forEach(function (v) {
+      var btn = document.createElement('button');
+      btn.className = 'list-item result-item focusable';
+      btn.dataset.action = 'play-video';
+      btn.dataset.videoId = v.id;
+      btn.dataset.title = v.title;
+      btn.dataset.thumb = v.thumb || '';
+      btn.innerHTML =
+        '<img class="result-thumb" loading="lazy" alt="">' +
+        '<div class="list-item-content">' +
+          '<div class="result-title"></div>' +
+        '</div>';
+      if (v.thumb) btn.querySelector('.result-thumb').src = v.thumb;
+      btn.querySelector('.result-title').textContent = v.title || v.id;
+      listEl.appendChild(btn);
+    });
+  }
+
   // ==================== PLAYER ====================
-  function playVideo(videoId, title) {
+  function playVideo(videoId, title, thumb) {
+    pushHistory(videoId, title, thumb);
     state.currentVideo = { id: videoId, title: title };
     document.getElementById('player-title').textContent = title || '';
     navigateTo('player');
@@ -342,7 +388,7 @@
         break;
       }
       case 'play-video': {
-        playVideo(element.dataset.videoId, element.dataset.title);
+        playVideo(element.dataset.videoId, element.dataset.title, element.dataset.thumb || '');
         break;
       }
       case 'save-apikey': {
@@ -360,6 +406,7 @@
   function onScreenEnter(screenId) {
     if (screenId === 'home') {
       renderRecent();
+      renderHistory();
     } else if (screenId === 'settings') {
       var input = document.getElementById('apikey-input');
       input.value = state.data.apiKey || '';
