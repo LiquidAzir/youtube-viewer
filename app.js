@@ -421,9 +421,24 @@
   var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   var voiceRecognition = null;
 
+  function isVoiceSupported() {
+    if (!SpeechRecognition) return false;
+    try {
+      if (localStorage.getItem('mdg_yt_voice_unsupported') === '1') return false;
+    } catch (_) {}
+    return true;
+  }
+
+  function applyVoiceSupportUI() {
+    var micBtn = document.getElementById('mic-btn');
+    if (!micBtn) return;
+    micBtn.classList.toggle('hidden', !isVoiceSupported());
+  }
+
   function startVoiceSearch() {
-    if (!SpeechRecognition) {
+    if (!isVoiceSupported()) {
       showToast('Voice search not supported on this device');
+      applyVoiceSupportUI();
       return;
     }
     var micBtn = document.getElementById('mic-btn');
@@ -458,6 +473,16 @@
         showToast('No speech detected — try again');
       } else if (event.error === 'not-allowed') {
         showToast('Microphone access denied');
+      } else if (event.error === 'service-not-allowed') {
+        // The WebView has no speech service backend (typical on the glasses).
+        // Hide the mic button for future visits and tell the user how to search.
+        try { localStorage.setItem('mdg_yt_voice_unsupported', '1'); } catch (_) {}
+        applyVoiceSupportUI();
+        showToast('Voice not supported on this device — use ?q= URL param');
+      } else if (event.error === 'audio-capture') {
+        showToast('No microphone available');
+      } else if (event.error === 'network') {
+        showToast('Voice search needs internet');
       } else {
         showToast('Voice error: ' + event.error);
       }
@@ -697,9 +722,13 @@
   }
 
   // ==================== URL PARAM BOOTSTRAP ====================
-  // Allows passing the API key via URL so you never have to type it on-device:
-  //   https://youtube-viewer.onrender.com?key=AIza...
-  // The key is saved to localStorage on first visit, then the param is stripped.
+  // Supported params (stripped from URL after first read):
+  //   ?key=AIza...    YouTube Data API key, saved to localStorage
+  //   ?clientId=...   OAuth client ID, saved to localStorage
+  //   ?q=lofi+beats   one-shot search run on load (NOT saved)
+  // Example URL to register on the glasses (no typing required):
+  //   https://youtube-viewer.onrender.com?key=AIza...&q=nature+4k
+  var pendingQuery = null;
   function bootstrapFromUrl() {
     try {
       var params = new URLSearchParams(window.location.search);
@@ -714,6 +743,12 @@
       if (urlClientId && urlClientId.length > 10) {
         state.data.clientId = urlClientId;
         params.delete('clientId');
+        changed = true;
+      }
+      var urlQuery = params.get('q');
+      if (urlQuery && urlQuery.trim()) {
+        pendingQuery = urlQuery.trim();
+        params.delete('q');
         changed = true;
       }
       if (changed) {
@@ -736,9 +771,14 @@
     setTimeout(function () {
       if (!state.data.apiKey) {
         navigateTo('settings', { addToHistory: false });
+      } else if (pendingQuery) {
+        navigateTo('home', { addToHistory: false });
+        runSearch(pendingQuery);
+        pendingQuery = null;
       } else {
         navigateTo('home', { addToHistory: false });
       }
+      applyVoiceSupportUI();
     }, 50);
   }
 
