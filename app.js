@@ -424,6 +424,11 @@
     state.overlayTimer = setTimeout(function () {
       var ov = document.getElementById('player-overlay');
       var chip = document.getElementById('player-back-chip');
+      // Don't auto-hide while the back chip is focused — the user is mid-action.
+      if (chip && document.activeElement === chip) {
+        scheduleHideOverlay();
+        return;
+      }
       if (ov) ov.classList.add('hidden-overlay');
       if (chip) chip.classList.add('hidden-overlay');
     }, 3000);
@@ -814,16 +819,40 @@
     });
 
     document.addEventListener('keydown', function (e) {
-      // On the player screen, intercept everything regardless of focus.
+      // Player screen: D-pad navigates between the "video" (focus-sink) and
+      // the back chip. Left/right = seek. Enter activates whatever is focused.
       if (state.currentScreen === 'player') {
+        var sink = document.getElementById('player-focus-sink');
+        var chip = document.getElementById('player-back-chip');
+        var aeP = document.activeElement;
+        var onChip = aeP === chip;
         switch (e.key) {
           case 'ArrowLeft':  seekBy(-10); e.preventDefault(); return;
           case 'ArrowRight': seekBy(10);  e.preventDefault(); return;
-          case 'ArrowUp':    adjustVolume(10);  e.preventDefault(); return;
-          case 'ArrowDown':  adjustVolume(-10); e.preventDefault(); return;
+          case 'ArrowUp':
+            if (chip && !onChip) { chip.focus(); showOverlay(); }
+            e.preventDefault();
+            return;
+          case 'ArrowDown':
+            if (sink && onChip) { sink.focus(); showOverlay(); }
+            e.preventDefault();
+            return;
           case ' ':
-          case 'Enter':      togglePlay(); e.preventDefault(); return;
-          case 'Escape':     navigateBack(); e.preventDefault(); return;
+            togglePlay();
+            e.preventDefault();
+            return;
+          case 'Enter':
+            if (onChip) {
+              navigateBack();
+            } else {
+              togglePlay();
+            }
+            e.preventDefault();
+            return;
+          case 'Escape':
+            navigateBack();
+            e.preventDefault();
+            return;
         }
         return;
       }
