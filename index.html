@@ -56,6 +56,19 @@
             <span class="list-item-content"><span class="list-item-title">Nature 4K</span></span>
           </button>
         </div>
+
+        <div class="info-card" id="home-info-card">
+          <div class="info-card-title">About this app</div>
+          <div class="info-card-text">
+            Search is powered by the free <strong>YouTube Data API v3</strong>.
+            The shared key gives everyone ~100 searches/day combined.
+            For your own ~100/day:
+            <br>1. Visit <em>console.cloud.google.com</em>
+            <br>2. Create a project &rarr; enable <em>YouTube Data API v3</em>
+            <br>3. Credentials &rarr; Create credentials &rarr; API key
+            <br>4. Paste it in <strong>Settings</strong> (gear icon, top right)
+          </div>
+        </div>
       </div>
     </div>
 
@@ -151,46 +164,11 @@
           5. Copy <code>AIza&hellip;</code> &rarr; paste above &rarr; Save<br>
           Restrict the key to <em>YouTube Data API v3</em> after creating it.
         </div>
-
-        <div class="divider"></div>
-
-        <div class="section-label">Sign in (optional)</div>
-        <div id="signin-status" class="hidden">
-          <div class="signin-card">
-            <div class="signin-info">
-              <div class="signin-name" id="signin-name"></div>
-              <div class="signin-email" id="signin-email"></div>
-            </div>
-            <button class="nav-item danger focusable" data-action="google-signout">Sign out</button>
-          </div>
-        </div>
-        <div id="signin-setup">
-          <div class="section-label" style="margin-top:0">OAuth Client ID</div>
-          <input
-            type="text"
-            id="clientid-input"
-            class="text-input focusable"
-            placeholder="123456789.apps.googleusercontent.com"
-            data-submit-action="save-clientid"
-            autocomplete="off"
-            spellcheck="false">
-          <button class="nav-item primary focusable" data-action="save-clientid">Save Client ID</button>
-          <button class="nav-item focusable" id="google-signin-btn" data-action="google-signin">Sign in with Google</button>
-          <div class="help-text">
-            Same Google Cloud project &rarr; Credentials &rarr;
-            <strong>Create OAuth 2.0 Client ID</strong> (Web application).
-            Add your Render URL and http://localhost as Authorized JavaScript Origins.
-            Note: signing in does <strong>not</strong> remove ads &mdash;
-            YouTube's embed player ignores third-party OAuth for ad logic.
-            It's here for future features like your subscriptions feed.
-          </div>
-        </div>
       </div>
     </div>
 
   </div>
   <script src="https://www.youtube.com/iframe_api"></script>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="config.js"></script>
   <script src="app.js"></script>
 </body>

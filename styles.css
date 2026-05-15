@@ -422,36 +422,31 @@ body {
 }
 .error-actions .nav-item { flex: 1; }
 
-/* --- Sign-in card --- */
-.divider {
-  height: 1px;
-  background: var(--bg-tertiary);
-  margin: 8px 0;
-}
-.signin-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--bg-tertiary);
+/* --- Home info card (about / how to get an API key) --- */
+.info-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--bg-tertiary);
   border-radius: var(--radius-md);
   padding: 12px 14px;
+  margin-top: 4px;
 }
-.signin-info { flex: 1; min-width: 0; }
-.signin-name {
-  font-size: 15px;
-  font-weight: 600;
-}
-.signin-email {
+.info-card-title {
   font-size: 12px;
-  color: var(--text-secondary);
-  margin-top: 2px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
 }
-.nav-item.danger {
-  background: var(--danger);
-  color: #fff;
-  flex-shrink: 0;
-  padding: 10px 14px;
-  font-size: 13px;
+.info-card-text {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.info-card-text strong { color: var(--text-primary); }
+.info-card-text em {
+  font-style: normal;
+  color: var(--accent-primary);
 }
 
 /* --- Player --- */
