@@ -13,6 +13,25 @@
     recentMax: 5,
   };
 
+  // ==================== EMBEDDED CONFIG (config.js) ====================
+  // Read the shared API key from config.js. Falls back to the per-user key in
+  // localStorage when this isn't set, so anyone bringing their own key still
+  // overrides the embedded default.
+  function getEmbeddedApiKey() {
+    var cfg = window.YOUTUBE_VIEWER_CONFIG;
+    if (!cfg) return '';
+    var k = cfg.EMBEDDED_API_KEY || '';
+    if (!k || k === 'YOUR_API_KEY_HERE') return '';
+    return k;
+  }
+  function getEffectiveApiKey() {
+    // Personal key (from settings or URL param) wins over the shared one.
+    return state.data.apiKey || getEmbeddedApiKey();
+  }
+  function isUsingEmbeddedKey() {
+    return !state.data.apiKey && !!getEmbeddedApiKey();
+  }
+
   // ==================== STATE ====================
   var state = {
     currentScreen: 'home',
@@ -142,7 +161,8 @@
 
   // ==================== SEARCH ====================
   function runSearch(query) {
-    if (!state.data.apiKey) {
+    var apiKey = getEffectiveApiKey();
+    if (!apiKey) {
       navigateTo('settings');
       return;
     }
@@ -165,15 +185,24 @@
       '&type=video' +
       '&maxResults=' + CONFIG.api.maxResults +
       '&q=' + encodeURIComponent(q) +
-      '&key=' + encodeURIComponent(state.data.apiKey);
+      '&key=' + encodeURIComponent(apiKey);
 
     fetch(url)
       .then(function (res) {
         if (!res.ok) {
           return res.json().then(function (body) {
-            var msg = (body && body.error && body.error.message) || ('HTTP ' + res.status);
-            throw new Error(msg);
-          }, function () { throw new Error('HTTP ' + res.status); });
+            var err = body && body.error;
+            var reason = err && err.errors && err.errors[0] && err.errors[0].reason;
+            var msg = (err && err.message) || ('HTTP ' + res.status);
+            var e = new Error(msg);
+            e.reason = reason || '';
+            e.status = res.status;
+            throw e;
+          }, function () {
+            var e = new Error('HTTP ' + res.status);
+            e.status = res.status;
+            throw e;
+          });
         }
         return res.json();
       })
@@ -190,14 +219,56 @@
       })
       .catch(function (err) {
         loadingEl.classList.add('hidden');
-        showError(err.message || 'Search failed');
+        if (err.reason === 'quotaExceeded' || err.reason === 'dailyLimitExceeded') {
+          showQuotaExceeded();
+        } else if (err.reason === 'keyInvalid' || err.reason === 'API_KEY_INVALID') {
+          showError('API key is invalid. Open Settings to update it.');
+        } else if (err.reason === 'ipRefererBlocked' || err.reason === 'referrerBlocked') {
+          showError('API key is restricted to a different site. Update its allowed origins.');
+        } else {
+          showError(err.message || 'Search failed');
+        }
       });
+  }
+
+  function showQuotaExceeded() {
+    var errorEl = document.getElementById('results-error');
+    var msgEl = document.getElementById('results-error-message');
+    if (isUsingEmbeddedKey()) {
+      msgEl.innerHTML =
+        'Today’s shared search limit has been reached.<br>' +
+        'Add your own free key in Settings to keep searching — ' +
+        'each personal key gets ~100 searches per day.';
+    } else {
+      msgEl.innerHTML =
+        'You’ve hit today’s YouTube quota for your personal key.<br>' +
+        'It resets at midnight Pacific time.';
+    }
+    errorEl.classList.remove('hidden');
+    // Replace the default "Back" button with two: Settings and Back.
+    var existing = errorEl.querySelector('.error-actions');
+    if (existing) existing.remove();
+    var actions = document.createElement('div');
+    actions.className = 'error-actions';
+    actions.innerHTML =
+      '<button class="nav-item primary focusable" data-action="open-settings">Get your own key</button>' +
+      '<button class="nav-item focusable" data-action="back">Back</button>';
+    errorEl.appendChild(actions);
+    // Hide the original single back button (it'll be in our actions row instead)
+    var origBack = errorEl.querySelector(':scope > [data-action="back"]');
+    if (origBack && origBack.tagName === 'BUTTON') origBack.classList.add('hidden');
+    focusFirst(screens.results);
   }
 
   function showError(msg) {
     var errorEl = document.getElementById('results-error');
     document.getElementById('results-error-message').textContent = msg;
     errorEl.classList.remove('hidden');
+    // Clear any quota-specific actions row from a prior error
+    var prior = errorEl.querySelector('.error-actions');
+    if (prior) prior.remove();
+    var origBack = errorEl.querySelector(':scope > [data-action="back"]');
+    if (origBack) origBack.classList.remove('hidden');
     focusFirst(screens.results);
   }
 
@@ -614,6 +685,38 @@
     showToast('Signed out');
   }
 
+  function renderKeyStatus() {
+    var el = document.getElementById('key-status');
+    if (!el) return;
+    el.className = 'key-status';
+    var icon = '', label = '', detail = '';
+    if (state.data.apiKey) {
+      el.classList.add('personal');
+      icon = '✓';
+      label = 'Using your personal key';
+      detail = 'Higher quota — ~100 searches/day just for you.';
+    } else if (getEmbeddedApiKey()) {
+      el.classList.add('shared');
+      icon = '✱';
+      label = 'Using the shared key';
+      detail = 'Works out of the box. Quota is shared with all users — add your own below if it runs out.';
+    } else {
+      el.classList.add('none');
+      icon = '⚠';
+      label = 'No API key configured';
+      detail = 'Paste a YouTube Data API v3 key below to enable search.';
+    }
+    el.innerHTML =
+      '<div class="key-status-icon"></div>' +
+      '<div class="key-status-text"><strong></strong><span></span></div>';
+    el.querySelector('.key-status-icon').textContent = icon;
+    el.querySelector('strong').textContent = label;
+    el.querySelector('span').textContent = detail;
+    // Show/hide Clear button based on whether a personal key exists.
+    var clearBtn = document.getElementById('clear-apikey-btn');
+    if (clearBtn) clearBtn.classList.toggle('hidden', !state.data.apiKey);
+  }
+
   function renderSignInStatus() {
     var statusEl = document.getElementById('signin-status');
     var setupEl = document.getElementById('signin-setup');
@@ -776,6 +879,14 @@
         }
         break;
       }
+      case 'clear-apikey': {
+        state.data.apiKey = '';
+        saveData();
+        document.getElementById('apikey-input').value = '';
+        renderKeyStatus();
+        showToast('Personal key removed — using shared key');
+        break;
+      }
       case 'save-clientid': {
         var cid = document.getElementById('clientid-input').value.trim();
         if (!cid) return;
@@ -805,6 +916,7 @@
     } else if (screenId === 'settings') {
       document.getElementById('apikey-input').value = state.data.apiKey || '';
       document.getElementById('clientid-input').value = state.data.clientId || '';
+      renderKeyStatus();
       renderSignInStatus();
     } else if (screenId === 'player') {
       mountPlayer();
@@ -987,7 +1099,8 @@
     bootstrapFromUrl();
     initGoogleAuth();
     setTimeout(function () {
-      if (!state.data.apiKey) {
+      if (!getEffectiveApiKey()) {
+        // No personal key and no embedded shared key -> force setup.
         navigateTo('settings', { addToHistory: false });
       } else if (pendingQuery) {
         navigateTo('home', { addToHistory: false });

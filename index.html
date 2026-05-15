@@ -125,7 +125,11 @@
         <h1>Settings</h1>
       </header>
       <div class="content">
-        <div class="section-label">YouTube Data API key</div>
+        <div class="key-status" id="key-status">
+          <!-- Filled in by JS: shows whether shared or personal key is active. -->
+        </div>
+
+        <div class="section-label">Personal API key (optional)</div>
         <input
           type="text"
           id="apikey-input"
@@ -134,11 +138,18 @@
           data-submit-action="save-apikey"
           autocomplete="off"
           spellcheck="false">
-        <button class="nav-item primary focusable" data-action="save-apikey">Save</button>
+        <div class="search-row">
+          <button class="nav-item primary focusable" data-action="save-apikey">Save</button>
+          <button class="nav-item focusable" id="clear-apikey-btn" data-action="clear-apikey">Clear</button>
+        </div>
         <div class="help-text">
-          Get a free key at console.cloud.google.com &rarr; enable
-          <strong>YouTube Data API v3</strong> &rarr; Credentials &rarr; Create API key.
-          Free tier: 10,000 units/day (~100 searches).
+          <strong>3-minute setup for your own ~100 daily searches:</strong><br>
+          1. Open <em>console.cloud.google.com</em><br>
+          2. Create a project (any name)<br>
+          3. APIs &amp; Services &rarr; Enable &rarr; <em>YouTube Data API v3</em><br>
+          4. Credentials &rarr; Create credentials &rarr; API key<br>
+          5. Copy <code>AIza&hellip;</code> &rarr; paste above &rarr; Save<br>
+          Restrict the key to <em>YouTube Data API v3</em> after creating it.
         </div>
 
         <div class="divider"></div>
@@ -180,6 +191,7 @@
   </div>
   <script src="https://www.youtube.com/iframe_api"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

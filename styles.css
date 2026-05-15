@@ -373,6 +373,54 @@ body {
   padding: 12px 14px;
   border-radius: var(--radius-md);
 }
+.help-text code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* --- Key status banner (Settings) --- */
+.key-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.key-status.shared {
+  background: rgba(0, 180, 216, 0.12);
+  color: #8ad8e8;
+  border: 1px solid rgba(0, 180, 216, 0.3);
+}
+.key-status.personal {
+  background: rgba(0, 255, 136, 0.12);
+  color: #6effb0;
+  border: 1px solid rgba(0, 255, 136, 0.3);
+}
+.key-status.none {
+  background: rgba(255, 68, 102, 0.12);
+  color: #ff8aa0;
+  border: 1px solid rgba(255, 68, 102, 0.3);
+}
+.key-status-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.key-status-text { flex: 1; }
+.key-status-text strong { display: block; margin-bottom: 2px; }
+
+/* --- Error actions row --- */
+.error-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  width: 100%;
+  max-width: 480px;
+}
+.error-actions .nav-item { flex: 1; }
 
 /* --- Sign-in card --- */
 .divider {
