@@ -30,9 +30,6 @@ def main() -> int:
     parser.add_argument("--channel", default=DEFAULT_CHANNEL,
                         help='Channel ID for the "My YouTube" tab '
                              f'(default: {DEFAULT_CHANNEL}; pass "" to omit)')
-    parser.add_argument("--playlist", default="",
-                        help='Watch Later queue playlist ID (PL...) for the '
-                             'Watch Later button (optional)')
     parser.add_argument("--url", default=DEFAULT_RENDER_URL,
                         help=f"Render URL (default: {DEFAULT_RENDER_URL})")
     parser.add_argument("--out", default="qr-paired.png",
@@ -46,8 +43,6 @@ def main() -> int:
     paired_url = f"{args.url}?key={urllib.parse.quote(args.api_key, safe='')}"
     if args.channel:
         paired_url += f"&channel={urllib.parse.quote(args.channel, safe='')}"
-    if args.playlist:
-        paired_url += f"&playlist={urllib.parse.quote(args.playlist, safe='')}"
     encoded_url = urllib.parse.quote(paired_url, safe="")
     deep_link = f"fb-viewapp://web_app_deep_link?appName={APP_NAME}&appUrl={encoded_url}"
 

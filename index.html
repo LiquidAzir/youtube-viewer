@@ -31,9 +31,6 @@
           <button class="mic-btn focusable" id="mic-btn" data-action="voice-search" aria-label="Voice search">&#127908;</button>
         </div>
 
-        <button class="nav-item mine-entry focusable" data-action="open-watchlater">
-          <span class="mine-entry-icon">&#9201;</span> Watch Later
-        </button>
         <button class="nav-item mine-entry focusable" data-action="open-mine">
           <span class="mine-entry-icon">&#9654;</span> My YouTube
         </button>
@@ -118,9 +115,6 @@
         </div>
         <div id="mine-menu" class="hidden">
           <div class="mine-channel-name" id="mine-channel-name"></div>
-          <button class="nav-item focusable mine-cat" data-action="open-watchlater">
-            <span class="mine-cat-icon">&#9201;</span> Watch Later
-          </button>
           <button class="nav-item focusable mine-cat" data-action="mine-uploads">
             <span class="mine-cat-icon">&#9654;</span> My Uploads
           </button>
@@ -268,29 +262,6 @@
           turn off &ldquo;Keep all my subscriptions private.&rdquo;
         </div>
 
-        <div class="divider"></div>
-
-        <div class="section-label">Watch Later playlist (optional)</div>
-        <input
-          type="text"
-          id="watchlist-input"
-          class="text-input focusable"
-          placeholder="PL&hellip; (your queue playlist ID)"
-          data-submit-action="save-watchlist"
-          autocomplete="off"
-          spellcheck="false">
-        <div class="search-row">
-          <button class="nav-item primary focusable" data-action="save-watchlist">Save list</button>
-          <button class="nav-item focusable" id="clear-watchlist-btn" data-action="clear-watchlist">Clear</button>
-        </div>
-        <div class="help-text">
-          Your own &ldquo;watch later&rdquo; queue &mdash; the <strong>Watch Later</strong> button
-          on the home screen opens it.<br>
-          1. On YouTube, make a playlist (e.g. &ldquo;Glasses&rdquo;), set it to <strong>Unlisted</strong><br>
-          2. Open the playlist; copy the <code>PL&hellip;</code> from the URL (<code>&hellip;list=PL&hellip;</code>)<br>
-          3. Paste above &rarr; Save<br>
-          On your computer, click <strong>Save</strong> under any video &rarr; that playlist to add it.
-        </div>
       </div>
     </div>
 
