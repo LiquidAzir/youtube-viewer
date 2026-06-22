@@ -449,6 +449,55 @@ body {
   color: var(--accent-primary);
 }
 
+/* --- Settings divider --- */
+.divider {
+  height: 1px;
+  background: var(--bg-tertiary);
+  margin: 12px 0 4px;
+}
+
+/* --- My YouTube entry button (home) --- */
+.mine-entry {
+  justify-content: flex-start;
+  gap: 10px;
+  background: var(--bg-tertiary);
+  font-weight: 600;
+}
+.mine-entry-icon { color: var(--accent-primary); }
+
+/* --- My YouTube hub --- */
+#mine-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mine-channel-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  padding: 4px 2px 8px;
+}
+.mine-cat {
+  justify-content: flex-start;
+  gap: 12px;
+}
+.mine-cat-icon {
+  color: var(--accent-primary);
+  width: 22px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* --- Channel/playlist avatar in lists --- */
+.row-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-card);
+  flex-shrink: 0;
+}
+
 /* --- Player --- */
 #player { background: #000; overflow: hidden; }
 .player-mount {

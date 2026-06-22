@@ -31,6 +31,10 @@
           <button class="mic-btn focusable" id="mic-btn" data-action="voice-search" aria-label="Voice search">&#127908;</button>
         </div>
 
+        <button class="nav-item mine-entry focusable" data-action="open-mine">
+          <span class="mine-entry-icon">&#9654;</span> My YouTube
+        </button>
+
         <div class="section-label" id="recent-label">Recent</div>
         <div class="list-container" id="recent-list">
           <!-- Recent searches rendered here -->
@@ -91,6 +95,76 @@
         <div class="list-container" id="results-list">
           <!-- Result items rendered here -->
         </div>
+      </div>
+    </div>
+
+    <!-- My YouTube: hub -->
+    <div id="mine" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back" aria-label="Back">&#8592;</button>
+        <h1>My YouTube</h1>
+      </header>
+      <div class="content">
+        <div id="mine-no-id" class="info-card hidden">
+          <div class="info-card-title">Connect your channel</div>
+          <div class="info-card-text">
+            Add your YouTube <strong>channel ID</strong> in Settings to see your
+            uploads, public playlists, and (if public) subscriptions here.
+          </div>
+          <button class="nav-item primary focusable" data-action="open-settings" style="margin-top:10px">Open Settings</button>
+        </div>
+        <div id="mine-menu" class="hidden">
+          <div class="mine-channel-name" id="mine-channel-name"></div>
+          <button class="nav-item focusable mine-cat" data-action="mine-uploads">
+            <span class="mine-cat-icon">&#9654;</span> My Uploads
+          </button>
+          <button class="nav-item focusable mine-cat" data-action="mine-playlists">
+            <span class="mine-cat-icon">&#9776;</span> My Playlists
+          </button>
+          <button class="nav-item focusable mine-cat" data-action="mine-subs">
+            <span class="mine-cat-icon">&#9733;</span> Subscriptions
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- My YouTube: level 1 list (uploads / playlists / subscriptions) -->
+    <div id="mine-list" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back" aria-label="Back">&#8592;</button>
+        <h1 id="mine-list-title">My YouTube</h1>
+      </header>
+      <div class="content">
+        <div id="mine-list-loading" class="loading-container hidden">
+          <div class="loading-spinner"></div>
+          <div class="loading-text">Loading&hellip;</div>
+        </div>
+        <div id="mine-list-error" class="error-container hidden">
+          <div class="error-icon">&#9888;</div>
+          <div class="error-message" id="mine-list-error-message"></div>
+          <button class="nav-item focusable" data-action="back">Back</button>
+        </div>
+        <div class="list-container" id="mine-list-items"></div>
+      </div>
+    </div>
+
+    <!-- My YouTube: level 2 list (a playlist's videos / a channel's uploads) -->
+    <div id="mine-sub" class="screen hidden">
+      <header class="header">
+        <button class="back-btn focusable" data-action="back" aria-label="Back">&#8592;</button>
+        <h1 id="mine-sub-title">My YouTube</h1>
+      </header>
+      <div class="content">
+        <div id="mine-sub-loading" class="loading-container hidden">
+          <div class="loading-spinner"></div>
+          <div class="loading-text">Loading&hellip;</div>
+        </div>
+        <div id="mine-sub-error" class="error-container hidden">
+          <div class="error-icon">&#9888;</div>
+          <div class="error-message" id="mine-sub-error-message"></div>
+          <button class="nav-item focusable" data-action="back">Back</button>
+        </div>
+        <div class="list-container" id="mine-sub-items"></div>
       </div>
     </div>
 
@@ -163,6 +237,29 @@
           4. Credentials &rarr; Create credentials &rarr; API key<br>
           5. Copy <code>AIza&hellip;</code> &rarr; paste above &rarr; Save<br>
           Restrict the key to <em>YouTube Data API v3</em> after creating it.
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="section-label">My YouTube channel (optional)</div>
+        <input
+          type="text"
+          id="channelid-input"
+          class="text-input focusable"
+          placeholder="UC&hellip; (your channel ID)"
+          data-submit-action="save-channelid"
+          autocomplete="off"
+          spellcheck="false">
+        <div class="search-row">
+          <button class="nav-item primary focusable" data-action="save-channelid">Save channel</button>
+          <button class="nav-item focusable" id="clear-channelid-btn" data-action="clear-channelid">Clear</button>
+        </div>
+        <div class="help-text">
+          Shows your uploads + public playlists in the <strong>My YouTube</strong> tab.<br>
+          1. Find your ID at <em>youtube.com/account_advanced</em> (starts with <code>UC</code>)<br>
+          2. Paste above &rarr; Save<br>
+          To see your <strong>subscriptions</strong>: YouTube &rarr; Settings &rarr; Privacy &rarr;
+          turn off &ldquo;Keep all my subscriptions private.&rdquo;
         </div>
       </div>
     </div>

@@ -38,6 +38,7 @@
     screenHistory: [],
     data: {
       apiKey: '',
+      channelId: '',
       recent: [],
       history: [],       // { id, title, thumb, time }
     },
@@ -46,6 +47,9 @@
     playerReady: false,
     currentVideo: null,
     overlayTimer: null,
+    mine: { channelCache: {} },  // channelId -> { title, uploads }
+    mineList: null,              // current level-1 view descriptor
+    mineSub: null,              // current level-2 view descriptor
   };
 
   var screens = {};
@@ -749,6 +753,260 @@
     if (next) next.focus();
   }
 
+  // ==================== MY YOUTUBE (API-key-only account data) ====================
+  // No OAuth: reads PUBLIC channel data with the same API key used for search.
+  //   - Uploads:       any channel's uploads playlist
+  //   - Playlists:     the channel's public playlists
+  //   - Subscriptions: only if the user set subscriptions to public
+  var YT_API_BASE = 'https://www.googleapis.com/youtube/v3/';
+
+  function ytApi(path, params) {
+    var key = getEffectiveApiKey();
+    if (!key) {
+      var ek = new Error('No API key');
+      ek.reason = 'noKey';
+      return Promise.reject(ek);
+    }
+    var qs = Object.keys(params).map(function (k) {
+      return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+    }).join('&');
+    var url = YT_API_BASE + path + '?' + qs + '&key=' + encodeURIComponent(key);
+    return fetch(url).then(function (res) {
+      if (!res.ok) {
+        return res.json().then(function (body) {
+          var err = body && body.error;
+          var reason = err && err.errors && err.errors[0] && err.errors[0].reason;
+          var e = new Error((err && err.message) || ('HTTP ' + res.status));
+          e.reason = reason || '';
+          e.status = res.status;
+          throw e;
+        }, function () {
+          var e = new Error('HTTP ' + res.status);
+          e.status = res.status;
+          throw e;
+        });
+      }
+      return res.json();
+    });
+  }
+
+  function thumbOf(sn) {
+    var t = sn && sn.thumbnails;
+    if (!t) return '';
+    return ((t.medium || t.high || t.default) || {}).url || '';
+  }
+
+  function mapPlaylistItem(it) {
+    var sn = it.snippet || {};
+    var rid = sn.resourceId || {};
+    if (!rid.videoId) return null;
+    if (sn.title === 'Private video' || sn.title === 'Deleted video') return null;
+    return {
+      type: 'video',
+      videoId: rid.videoId,
+      title: sn.title || '',
+      channelTitle: sn.videoOwnerChannelTitle || sn.channelTitle || '',
+      thumb: thumbOf(sn),
+    };
+  }
+
+  // Resolve a channel ID -> { title, uploads playlist id }, cached.
+  function resolveChannel(id) {
+    if (state.mine.channelCache[id]) return Promise.resolve(state.mine.channelCache[id]);
+    return ytApi('channels', { part: 'snippet,contentDetails', id: id }).then(function (data) {
+      var it = (data.items || [])[0];
+      if (!it) throw new Error('Channel not found');
+      var info = {
+        title: (it.snippet && it.snippet.title) || '',
+        uploads: (it.contentDetails && it.contentDetails.relatedPlaylists &&
+                  it.contentDetails.relatedPlaylists.uploads) || '',
+      };
+      state.mine.channelCache[id] = info;
+      return info;
+    });
+  }
+
+  // --- Loaders (each returns a Promise of a normalized item array) ---
+  function loadUploads() {
+    return resolveChannel(state.data.channelId).then(function (ch) {
+      if (!ch.uploads) return [];
+      return ytApi('playlistItems', { part: 'snippet', maxResults: 25, playlistId: ch.uploads })
+        .then(function (d) { return (d.items || []).map(mapPlaylistItem).filter(Boolean); });
+    });
+  }
+  function loadPlaylistVideos(pid) {
+    return ytApi('playlistItems', { part: 'snippet', maxResults: 25, playlistId: pid })
+      .then(function (d) { return (d.items || []).map(mapPlaylistItem).filter(Boolean); });
+  }
+  function loadChannelUploads(cid) {
+    return resolveChannel(cid).then(function (ch) {
+      if (!ch.uploads) return [];
+      return ytApi('playlistItems', { part: 'snippet', maxResults: 25, playlistId: ch.uploads })
+        .then(function (d) { return (d.items || []).map(mapPlaylistItem).filter(Boolean); });
+    });
+  }
+  function loadPlaylists() {
+    return ytApi('playlists', { part: 'snippet,contentDetails', maxResults: 25, channelId: state.data.channelId })
+      .then(function (d) {
+        return (d.items || []).map(function (p) {
+          var sn = p.snippet || {};
+          return {
+            type: 'playlist',
+            id: p.id,
+            title: sn.title || '',
+            count: (p.contentDetails && p.contentDetails.itemCount),
+            thumb: thumbOf(sn),
+          };
+        });
+      });
+  }
+  function loadSubscriptions() {
+    return ytApi('subscriptions', {
+      part: 'snippet', maxResults: 25, channelId: state.data.channelId, order: 'alphabetical',
+    }).then(function (d) {
+      return (d.items || []).map(function (s) {
+        var sn = s.snippet || {};
+        var rid = sn.resourceId || {};
+        return { type: 'channel', id: rid.channelId || '', title: sn.title || '', thumb: thumbOf(sn) };
+      });
+    });
+  }
+
+  // --- DOM builders ---
+  function makeVideoButton(videoId, title, channelTitle, thumb) {
+    if (!videoId) return null;
+    var btn = document.createElement('button');
+    btn.className = 'list-item result-item focusable';
+    btn.dataset.action = 'play-video';
+    btn.dataset.videoId = videoId;
+    btn.dataset.title = title || '';
+    btn.dataset.thumb = thumb || '';
+    btn.innerHTML =
+      '<img class="result-thumb" loading="lazy" alt="">' +
+      '<div class="list-item-content">' +
+        '<div class="result-title"></div>' +
+        '<div class="result-channel"></div>' +
+      '</div>';
+    btn.querySelector('.result-thumb').src = thumb || '';
+    btn.querySelector('.result-title').textContent = title || '(untitled)';
+    btn.querySelector('.result-channel').textContent = channelTitle || '';
+    return btn;
+  }
+  function makeRowButton(action, data, thumb, icon, title, meta) {
+    var btn = document.createElement('button');
+    btn.className = 'list-item focusable';
+    btn.dataset.action = action;
+    Object.keys(data).forEach(function (k) { btn.dataset[k] = data[k]; });
+    btn.innerHTML =
+      (thumb ? '<img class="row-thumb" loading="lazy" alt="">' : '<span class="list-item-icon"></span>') +
+      '<div class="list-item-content">' +
+        '<span class="list-item-title"></span>' +
+        (meta ? '<span class="list-item-meta"></span>' : '') +
+      '</div>';
+    if (thumb) btn.querySelector('.row-thumb').src = thumb;
+    else btn.querySelector('.list-item-icon').textContent = icon;
+    btn.querySelector('.list-item-title').textContent = title || '';
+    if (meta) btn.querySelector('.list-item-meta').textContent = meta;
+    return btn;
+  }
+
+  function renderMineItems(listEl, items) {
+    listEl.innerHTML = '';
+    items.forEach(function (it) {
+      var btn = null;
+      if (it.type === 'video') {
+        btn = makeVideoButton(it.videoId, it.title, it.channelTitle, it.thumb);
+      } else if (it.type === 'playlist') {
+        btn = makeRowButton('open-playlist', { playlistId: it.id, title: it.title },
+          it.thumb, '☰', it.title, (it.count != null ? it.count + ' videos' : ''));
+      } else if (it.type === 'channel') {
+        btn = makeRowButton('open-channel', { channelId: it.id, title: it.title },
+          it.thumb, '▶', it.title, '');
+      }
+      if (btn) listEl.appendChild(btn);
+    });
+  }
+
+  // --- Hub ---
+  function renderMineHub() {
+    var noId = document.getElementById('mine-no-id');
+    var menu = document.getElementById('mine-menu');
+    var nameEl = document.getElementById('mine-channel-name');
+    if (!state.data.channelId) {
+      noId.classList.remove('hidden');
+      menu.classList.add('hidden');
+      return;
+    }
+    noId.classList.add('hidden');
+    menu.classList.remove('hidden');
+    nameEl.textContent = 'Loading…';
+    resolveChannel(state.data.channelId).then(function (ch) {
+      nameEl.textContent = ch.title || '';
+    }).catch(function () { nameEl.textContent = ''; });
+  }
+
+  // --- Generic level-1 / level-2 list rendering ---
+  // prefix is 'mine-list' or 'mine-sub'; d is the view descriptor:
+  //   { title, items (null until loaded), loader }
+  function enterMineScreen(prefix, d) {
+    var titleEl = document.getElementById(prefix + '-title');
+    var loadingEl = document.getElementById(prefix + '-loading');
+    var errorEl = document.getElementById(prefix + '-error');
+    var listEl = document.getElementById(prefix + '-items');
+    if (!d) { return; }
+    titleEl.textContent = d.title || 'My YouTube';
+    errorEl.classList.add('hidden');
+
+    function paint(items) {
+      loadingEl.classList.add('hidden');
+      if (!items.length) { showMineErr(prefix, 'Nothing here yet.'); return; }
+      renderMineItems(listEl, items);
+      var content = screens[prefix].querySelector('.content');
+      if (content) content.scrollTop = 0;
+      var first = listEl.querySelector('.focusable');
+      if (first) { first.focus(); first.scrollIntoView({ block: 'start' }); }
+    }
+
+    if (d.items) { loadingEl.classList.add('hidden'); paint(d.items); return; }
+    loadingEl.classList.remove('hidden');
+    listEl.innerHTML = '';
+    d.loader().then(function (items) {
+      d.items = items;
+      paint(items);
+    }).catch(function (err) {
+      loadingEl.classList.add('hidden');
+      handleMineError(prefix, err);
+    });
+  }
+
+  function showMineErr(prefix, msg) {
+    var errorEl = document.getElementById(prefix + '-error');
+    document.getElementById(prefix + '-error-message').textContent = msg;
+    errorEl.classList.remove('hidden');
+    focusFirst(screens[prefix]);
+  }
+
+  function handleMineError(prefix, err) {
+    var msg;
+    if (err.reason === 'quotaExceeded' || err.reason === 'dailyLimitExceeded') {
+      msg = isUsingEmbeddedKey()
+        ? 'Shared daily limit reached. Add your own key in Settings.'
+        : 'Daily quota reached. Resets at midnight Pacific time.';
+    } else if (err.reason === 'subscriptionForbidden') {
+      msg = 'Your subscriptions are private. In YouTube: Settings → Privacy → ' +
+            'turn off "Keep all my subscriptions private".';
+    } else if (err.reason === 'playlistNotFound' || err.reason === 'playlistItemsNotAccessible') {
+      msg = "That playlist isn't public.";
+    } else if (err.reason === 'keyInvalid') {
+      msg = 'API key is invalid. Update it in Settings.';
+    } else if (err.message === 'Channel not found') {
+      msg = 'Channel not found. Check the channel ID in Settings.';
+    } else {
+      msg = err.message || 'Could not load.';
+    }
+    showMineErr(prefix, msg);
+  }
+
   // ==================== ACTION HANDLING ====================
   function handleAction(action, element) {
     switch (action) {
@@ -794,6 +1052,51 @@
         showToast('Personal key removed — using shared key');
         break;
       }
+      case 'save-channelid': {
+        var cv = document.getElementById('channelid-input').value.trim();
+        if (!cv) return;
+        state.data.channelId = cv;
+        state.mine.channelCache = {};   // invalidate cached resolution
+        saveData();
+        showToast('Channel saved');
+        navigateTo('mine');
+        break;
+      }
+      case 'clear-channelid': {
+        state.data.channelId = '';
+        state.mine.channelCache = {};
+        saveData();
+        document.getElementById('channelid-input').value = '';
+        showToast('Channel removed');
+        break;
+      }
+      case 'open-mine': navigateTo('mine'); break;
+      case 'mine-uploads':
+        state.mineList = { title: 'My Uploads', items: null, loader: loadUploads };
+        navigateTo('mine-list');
+        break;
+      case 'mine-playlists':
+        state.mineList = { title: 'My Playlists', items: null, loader: loadPlaylists };
+        navigateTo('mine-list');
+        break;
+      case 'mine-subs':
+        state.mineList = { title: 'Subscriptions', items: null, loader: loadSubscriptions };
+        navigateTo('mine-list');
+        break;
+      case 'open-playlist': {
+        var pid = element.dataset.playlistId;
+        var ptitle = element.dataset.title || 'Playlist';
+        state.mineSub = { title: ptitle, items: null, loader: function () { return loadPlaylistVideos(pid); } };
+        navigateTo('mine-sub');
+        break;
+      }
+      case 'open-channel': {
+        var cid = element.dataset.channelId;
+        var ctitle = element.dataset.title || 'Channel';
+        state.mineSub = { title: ctitle, items: null, loader: function () { return loadChannelUploads(cid); } };
+        navigateTo('mine-sub');
+        break;
+      }
       case 'voice-search': startVoiceSearch(); break;
       case 'toggle-play': togglePlay(); break;
       case 'open-keyboard': openKeyboard(); break;
@@ -811,7 +1114,14 @@
       renderHistory();
     } else if (screenId === 'settings') {
       document.getElementById('apikey-input').value = state.data.apiKey || '';
+      document.getElementById('channelid-input').value = state.data.channelId || '';
       renderKeyStatus();
+    } else if (screenId === 'mine') {
+      renderMineHub();
+    } else if (screenId === 'mine-list') {
+      enterMineScreen('mine-list', state.mineList);
+    } else if (screenId === 'mine-sub') {
+      enterMineScreen('mine-sub', state.mineSub);
     } else if (screenId === 'player') {
       mountPlayer();
       // Route key events to our handler, not the iframe
@@ -948,9 +1258,10 @@
   // ==================== URL PARAM BOOTSTRAP ====================
   // Supported params (stripped from URL after first read):
   //   ?key=AIza...    YouTube Data API key, saved to localStorage
+  //   ?channel=UC...  your channel ID for the My YouTube tab, saved
   //   ?q=lofi+beats   one-shot search run on load (NOT saved)
   // Example URL to register on the glasses (no typing required):
-  //   https://youtube-viewer.onrender.com?key=AIza...&q=nature+4k
+  //   https://youtube-viewer.onrender.com?key=AIza...&channel=UC...
   var pendingQuery = null;
   function bootstrapFromUrl() {
     try {
@@ -960,6 +1271,12 @@
       if (urlKey && urlKey.length > 10) {
         state.data.apiKey = urlKey;
         params.delete('key');
+        changed = true;
+      }
+      var urlChannel = params.get('channel');
+      if (urlChannel && urlChannel.length > 6) {
+        state.data.channelId = urlChannel;
+        params.delete('channel');
         changed = true;
       }
       var urlQuery = params.get('q');
