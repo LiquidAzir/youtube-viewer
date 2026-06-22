@@ -513,30 +513,6 @@ body {
   border: 0;
   display: block;
 }
-.player-back-chip {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  padding: 8px 14px;
-  background: rgba(10, 10, 15, 0.82);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  border-radius: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.15);
-  z-index: 6;
-  cursor: pointer;
-  min-height: 0;
-  transition: opacity 0.4s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
-}
-.player-back-chip:focus {
-  outline: none;
-  border-color: var(--focus-ring);
-  box-shadow: 0 0 16px var(--focus-glow);
-  transform: scale(1.06);
-  background: rgba(10, 10, 15, 0.95);
-}
-.player-back-chip.hidden-overlay { opacity: 0; pointer-events: none; }
 .player-overlay {
   position: absolute;
   left: 0;
@@ -584,7 +560,46 @@ body {
 .player-hint {
   font-size: 11px;
   color: var(--text-secondary);
+  text-align: center;
 }
+
+/* --- Player control bar (visible when paused) --- */
+.player-controls {
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  gap: 10px;
+  margin: 10px 0 8px;
+}
+.player-controls.hidden { display: none; }
+.pc-btn {
+  pointer-events: auto;            /* overlay is pointer-events:none; re-enable here */
+  flex: 1;
+  max-width: 130px;
+  min-height: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: rgba(26, 26, 46, 0.92);
+  color: var(--text-primary);
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+.pc-btn .pc-ic { font-size: 24px; line-height: 1; }
+.pc-btn .pc-sub { font-size: 11px; color: var(--text-secondary); }
+.pc-btn.pc-main .pc-ic { font-size: 30px; }
+.pc-btn:focus {
+  outline: none;
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 20px var(--focus-glow);
+  transform: scale(1.08);
+  background: var(--bg-card);
+}
+.pc-btn:focus .pc-sub { color: var(--text-primary); }
 
 /* --- Mic / voice search button --- */
 .mic-btn {

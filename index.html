@@ -171,7 +171,6 @@
     <!-- Player: full-screen video -->
     <div id="player" class="screen hidden">
       <div id="player-mount" class="player-mount"></div>
-      <button id="player-back-chip" class="player-back-chip focusable" data-action="back">&#8592; Back</button>
       <div id="player-overlay" class="player-overlay">
         <div class="player-title" id="player-title"></div>
         <div class="player-time">
@@ -181,9 +180,21 @@
           </div>
           <span id="player-duration">0:00</span>
         </div>
-        <div class="player-hint">
-          &#9664; -10s &middot; Enter Play/Pause &middot; &#9654; +10s &middot; Esc Back
+        <div class="player-controls hidden" id="player-controls">
+          <button class="pc-btn focusable" data-action="seek-back" aria-label="Rewind 10 seconds">
+            <span class="pc-ic">&#9194;</span><span class="pc-sub">10s</span>
+          </button>
+          <button class="pc-btn pc-main focusable" id="pc-playpause" data-action="toggle-play" aria-label="Play or pause">
+            <span class="pc-ic" id="pc-playpause-ic">&#9654;</span>
+          </button>
+          <button class="pc-btn focusable" data-action="seek-fwd" aria-label="Forward 10 seconds">
+            <span class="pc-ic">&#9193;</span><span class="pc-sub">10s</span>
+          </button>
+          <button class="pc-btn focusable" data-action="back" aria-label="Back to videos">
+            <span class="pc-ic">&#8592;</span><span class="pc-sub">Back</span>
+          </button>
         </div>
+        <div class="player-hint" id="player-hint"></div>
       </div>
       <!-- Hidden focus sink so D-pad/Enter/Esc events route to us, not the iframe -->
       <button id="player-focus-sink" class="focusable focus-sink" data-action="toggle-play" aria-label="Player controls"></button>

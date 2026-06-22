@@ -385,6 +385,12 @@
     var startAt = state.currentVideo.start;
     if (startAt && startAt > 0) playerVars.start = Math.floor(startAt);
 
+    // Start immersive (controls hidden). State events reveal the bar on pause.
+    controlsActive = false;
+    var ctrls = document.getElementById('player-controls');
+    if (ctrls) ctrls.classList.add('hidden');
+    setPlayerHint('playing');
+
     var build = function () {
       state.player = new window.YT.Player('yt-player', {
         width: '600',
@@ -400,21 +406,29 @@
               e.target.playVideo();
             } catch (_) {}
             startProgressTimer();
-            // Overlay stays visible briefly so user sees the title, then state
-            // events take over (hide on play, show on pause).
             scheduleHideOverlay();
+            // If autoplay is blocked (no gesture), surface the controls so the
+            // user has an obvious Play button instead of a frozen frame.
+            setTimeout(function () {
+              if (state.player && state.player.getPlayerState &&
+                  state.player.getPlayerState() !== 1) {
+                showPlayerControls();
+              }
+            }, 1500);
           },
           onStateChange: function (e) {
             // 1=playing, 2=paused, 0=ended, 3=buffering, 5=cued
             if (e.data === 1) {
+              hidePlayerControls();
               hideOverlay();
             } else if (e.data === 2) {
               saveResumePoint();
-              showOverlay(true);
+              showPlayerControls();
             } else if (e.data === 0) {
               clearResumePoint();  // finished — nothing to resume
-              showOverlay(true);
+              showPlayerControls();
             }
+            updatePlayPauseIcon();
           },
         },
       });
@@ -440,10 +454,72 @@
     }
     state.player = null;
     state.currentVideo = null;
+    controlsActive = false;
+    var ctrls = document.getElementById('player-controls');
+    if (ctrls) ctrls.classList.add('hidden');
     var mount = document.getElementById('player-mount');
     if (mount) mount.innerHTML = '';
     clearTimeout(state.overlayTimer);
-    showOverlay();
+  }
+
+  // ==================== PLAYER CONTROL BAR ====================
+  // controlsActive = paused mode: the button bar is visible, swipes move
+  // focus between buttons, tap activates. Immersive (playing): swipes seek.
+  var controlsActive = false;
+
+  function playerControlButtons() {
+    return Array.prototype.slice.call(
+      document.querySelectorAll('#player-controls .pc-btn'));
+  }
+
+  function showPlayerControls() {
+    controlsActive = true;
+    var ctrls = document.getElementById('player-controls');
+    if (ctrls) ctrls.classList.remove('hidden');
+    setPlayerHint('controls');
+    showOverlay(true);
+    updatePlayPauseIcon();
+    // Default focus to play/pause if nothing in the bar is focused yet.
+    var btns = playerControlButtons();
+    if (btns.indexOf(document.activeElement) === -1) {
+      var pp = document.getElementById('pc-playpause');
+      if (pp) pp.focus();
+    }
+  }
+
+  function hidePlayerControls() {
+    controlsActive = false;
+    var ctrls = document.getElementById('player-controls');
+    if (ctrls) ctrls.classList.add('hidden');
+    setPlayerHint('playing');
+    var sink = document.getElementById('player-focus-sink');
+    if (sink) sink.focus();
+  }
+
+  function moveControlFocus(dir) {
+    var btns = playerControlButtons();
+    if (!btns.length) return;
+    var i = btns.indexOf(document.activeElement);
+    if (i === -1) i = 0;
+    else i = (i + dir + btns.length) % btns.length;
+    btns[i].focus();
+    showOverlay(true);
+  }
+
+  function updatePlayPauseIcon() {
+    var ic = document.getElementById('pc-playpause-ic');
+    if (!ic) return;
+    var playing = state.player && state.player.getPlayerState &&
+      state.player.getPlayerState() === 1;
+    ic.textContent = playing ? '⏸' : '▶';  // ⏸ / ▶
+  }
+
+  function setPlayerHint(mode) {
+    var h = document.getElementById('player-hint');
+    if (!h) return;
+    h.textContent = mode === 'controls'
+      ? 'Swipe ◀ ▶ to choose · Tap to select'
+      : 'Swipe ◀ ▶ to seek · Tap for controls';
   }
 
   function togglePlay() {
@@ -560,22 +636,18 @@
   // overlay stays up. Otherwise it auto-hides after 3s (e.g. seek confirmation).
   function showOverlay(persistent) {
     var ov = document.getElementById('player-overlay');
-    var chip = document.getElementById('player-back-chip');
     if (ov) ov.classList.remove('hidden-overlay');
-    if (chip) chip.classList.remove('hidden-overlay');
     updateProgress();
     clearTimeout(state.overlayTimer);
-    if (!persistent) scheduleHideOverlay();
+    if (!persistent && !controlsActive) scheduleHideOverlay();
   }
 
   function hideOverlay() {
+    // Never hide while the control bar is up — the user is choosing an action.
+    if (controlsActive) return;
     clearTimeout(state.overlayTimer);
     var ov = document.getElementById('player-overlay');
-    var chip = document.getElementById('player-back-chip');
-    // Never hide while the chip is focused — user is mid-navigation to back.
-    if (chip && document.activeElement === chip) return;
     if (ov) ov.classList.add('hidden-overlay');
-    if (chip) chip.classList.add('hidden-overlay');
   }
 
   function scheduleHideOverlay() {
@@ -1162,6 +1234,8 @@
       }
       case 'voice-search': startVoiceSearch(); break;
       case 'toggle-play': togglePlay(); break;
+      case 'seek-back': seekBy(-10); break;
+      case 'seek-fwd': seekBy(10); break;
       case 'open-keyboard': openKeyboard(); break;
       case 'kb-char': kbAppend(element.dataset.char || ''); break;
       case 'kb-space': kbAppend(' '); break;
@@ -1214,36 +1288,34 @@
       // Player screen: D-pad navigates between the "video" (focus-sink) and
       // the back chip. Left/right = seek. Enter activates whatever is focused.
       if (state.currentScreen === 'player') {
-        var sink = document.getElementById('player-focus-sink');
-        var chip = document.getElementById('player-back-chip');
-        var aeP = document.activeElement;
-        var onChip = aeP === chip;
         switch (e.key) {
-          case 'ArrowLeft':  seekBy(-10); e.preventDefault(); return;
-          case 'ArrowRight': seekBy(10);  e.preventDefault(); return;
-          case 'ArrowUp':
-            if (chip && !onChip) { chip.focus(); showOverlay(true); }
+          case 'ArrowLeft':
+            // Paused: move between control buttons. Playing: rewind.
+            if (controlsActive) moveControlFocus(-1);
+            else seekBy(-10);
             e.preventDefault();
             return;
+          case 'ArrowRight':
+            if (controlsActive) moveControlFocus(1);
+            else seekBy(10);
+            e.preventDefault();
+            return;
+          case 'ArrowUp':
           case 'ArrowDown':
-            if (sink && onChip) {
-              sink.focus();
-              // If the video is playing, drop the overlay since user is back
-              // in "watch" mode. If paused/ended, leave it (state event has it).
-              var ps = state.player && state.player.getPlayerState
-                && state.player.getPlayerState();
-              if (ps === 1) hideOverlay();
-            }
+            // Either vertical swipe summons the control bar (pausing the video),
+            // so Back and the other buttons are always reachable.
+            if (!controlsActive) togglePlay();
             e.preventDefault();
             return;
           case ' ':
-            togglePlay();
-            e.preventDefault();
-            return;
           case 'Enter':
-            if (onChip) {
-              navigateBack();
+            if (controlsActive) {
+              // Activate the focused control button (play/pause, seek, or back).
+              var btn = document.activeElement;
+              if (btn && btn.classList.contains('pc-btn')) btn.click();
+              else togglePlay();
             } else {
+              // Immersive tap → pause and reveal the controls.
               togglePlay();
             }
             e.preventDefault();
