@@ -39,6 +39,7 @@
     data: {
       apiKey: '',
       channelId: '',
+      watchPlaylistId: '',
       recent: [],
       history: [],       // { id, title, thumb, time }
     },
@@ -1071,6 +1072,36 @@
         break;
       }
       case 'open-mine': navigateTo('mine'); break;
+      case 'open-watchlater': {
+        if (!state.data.watchPlaylistId) {
+          showToast('Set your Watch Later playlist in Settings');
+          navigateTo('settings');
+          return;
+        }
+        var wpid = state.data.watchPlaylistId;
+        state.mineList = {
+          title: 'Watch Later', items: null,
+          loader: function () { return loadPlaylistVideos(wpid); },
+        };
+        navigateTo('mine-list');
+        break;
+      }
+      case 'save-watchlist': {
+        var wl = document.getElementById('watchlist-input').value.trim();
+        if (!wl) return;
+        state.data.watchPlaylistId = wl;
+        saveData();
+        showToast('Watch Later playlist saved');
+        navigateTo('home', { addToHistory: false });
+        break;
+      }
+      case 'clear-watchlist': {
+        state.data.watchPlaylistId = '';
+        saveData();
+        document.getElementById('watchlist-input').value = '';
+        showToast('Watch Later playlist removed');
+        break;
+      }
       case 'mine-uploads':
         state.mineList = { title: 'My Uploads', items: null, loader: loadUploads };
         navigateTo('mine-list');
@@ -1115,6 +1146,7 @@
     } else if (screenId === 'settings') {
       document.getElementById('apikey-input').value = state.data.apiKey || '';
       document.getElementById('channelid-input').value = state.data.channelId || '';
+      document.getElementById('watchlist-input').value = state.data.watchPlaylistId || '';
       renderKeyStatus();
     } else if (screenId === 'mine') {
       renderMineHub();
@@ -1259,9 +1291,10 @@
   // Supported params (stripped from URL after first read):
   //   ?key=AIza...    YouTube Data API key, saved to localStorage
   //   ?channel=UC...  your channel ID for the My YouTube tab, saved
+  //   ?playlist=PL... your Watch Later queue playlist ID, saved
   //   ?q=lofi+beats   one-shot search run on load (NOT saved)
   // Example URL to register on the glasses (no typing required):
-  //   https://youtube-viewer.onrender.com?key=AIza...&channel=UC...
+  //   https://youtube-viewer.onrender.com?key=AIza...&channel=UC...&playlist=PL...
   var pendingQuery = null;
   function bootstrapFromUrl() {
     try {
@@ -1277,6 +1310,12 @@
       if (urlChannel && urlChannel.length > 6) {
         state.data.channelId = urlChannel;
         params.delete('channel');
+        changed = true;
+      }
+      var urlPlaylist = params.get('playlist');
+      if (urlPlaylist && urlPlaylist.length > 6) {
+        state.data.watchPlaylistId = urlPlaylist;
+        params.delete('playlist');
         changed = true;
       }
       var urlQuery = params.get('q');
