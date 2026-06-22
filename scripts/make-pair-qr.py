@@ -1,13 +1,15 @@
 """
-Generate a Meta AI deep-link QR code that includes your YouTube API key.
+Generate a Meta AI deep-link QR code that pre-configures the app on the glasses.
 
 Run from the youtube-viewer/ directory:
     python scripts/make-pair-qr.py YOUR_API_KEY
+    python scripts/make-pair-qr.py YOUR_API_KEY --channel UCxxxx...
     python scripts/make-pair-qr.py YOUR_API_KEY --url https://other.onrender.com
 
 Scan the resulting qr-paired.png with your phone camera. The Meta AI app
-opens with the web app pre-filled; on first launch on the glasses the key
-is read from ?key=..., saved to localStorage, then stripped from the URL.
+opens with the web app pre-filled; on first launch on the glasses the
+?key=... (and optional ?channel=...) are read, saved to localStorage,
+then stripped from the URL. No typing on the glasses.
 """
 
 import argparse
@@ -18,11 +20,16 @@ import urllib.parse
 
 DEFAULT_RENDER_URL = "https://youtube-viewer-jezb.onrender.com"
 APP_NAME = "youtube-viewer"
+# Kevin's channel (public ID). Override with --channel, or "" to omit.
+DEFAULT_CHANNEL = "UCWZk9BUIEYZuMVdWxRBh2Sg"
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("api_key", help="YouTube Data API v3 key (AIza...)")
+    parser.add_argument("--channel", default=DEFAULT_CHANNEL,
+                        help='Channel ID for the "My YouTube" tab '
+                             f'(default: {DEFAULT_CHANNEL}; pass "" to omit)')
     parser.add_argument("--url", default=DEFAULT_RENDER_URL,
                         help=f"Render URL (default: {DEFAULT_RENDER_URL})")
     parser.add_argument("--out", default="qr-paired.png",
@@ -34,6 +41,8 @@ def main() -> int:
               file=sys.stderr)
 
     paired_url = f"{args.url}?key={urllib.parse.quote(args.api_key, safe='')}"
+    if args.channel:
+        paired_url += f"&channel={urllib.parse.quote(args.channel, safe='')}"
     encoded_url = urllib.parse.quote(paired_url, safe="")
     deep_link = f"fb-viewapp://web_app_deep_link?appName={APP_NAME}&appUrl={encoded_url}"
 
