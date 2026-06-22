@@ -104,28 +104,95 @@
   }
 
   // ==================== FOCUS ====================
+  // Only truly visible elements are focusable. offsetParent is null when the
+  // element (or an ancestor like a hidden error/loading panel) is display:none,
+  // so this excludes those buttons that would otherwise trap D-pad focus.
+  function getFocusables(container) {
+    return Array.prototype.slice.call(
+      container.querySelectorAll('.focusable:not([disabled])')
+    ).filter(function (el) { return el.offsetParent !== null; });
+  }
+
   function focusFirst(container) {
-    var el = container.querySelector('.focusable:not([disabled]):not(.hidden)');
-    if (el) el.focus();
+    var els = getFocusables(container);
+    if (els.length) els[0].focus();
+  }
+
+  function scrollToFocus(el) {
+    if (el && el.closest('.content, .list-container, .kb-content')) {
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }
+
+  function sameRow(a, b) {
+    return Math.abs(a.getBoundingClientRect().top - b.getBoundingClientRect().top) < 14;
+  }
+
+  // Group focusables into visual rows by vertical position so up/down jumps a
+  // whole row at a time — the search row (input + Go + keyboard + mic) becomes
+  // ONE stop; its buttons are reached by swiping left/right instead.
+  function focusRows(els) {
+    var rows = [];
+    els.forEach(function (el) {
+      var top = el.getBoundingClientRect().top;
+      var last = rows[rows.length - 1];
+      if (last && Math.abs(last.top - top) < 14) last.items.push(el);
+      else rows.push({ top: top, items: [el] });
+    });
+    rows.sort(function (a, b) { return a.top - b.top; });
+    return rows.map(function (r) { return r.items; });
+  }
+
+  function closestByX(els, ref) {
+    var rx = ref.getBoundingClientRect().left;
+    var best = null, bd = Infinity;
+    els.forEach(function (e) {
+      var d = Math.abs(e.getBoundingClientRect().left - rx);
+      if (d < bd) { bd = d; best = e; }
+    });
+    return best;
   }
 
   function moveFocus(direction) {
     var container = screens[state.currentScreen];
     if (!container) return;
-    var focusables = Array.from(
-      container.querySelectorAll('.focusable:not([disabled]):not(.hidden)')
-    );
-    if (focusables.length === 0) return;
-    var idx = focusables.indexOf(document.activeElement);
-    if (idx === -1) { focusFirst(container); return; }
-    var nextIdx;
-    if (direction === 'up' || direction === 'left') {
-      nextIdx = idx > 0 ? idx - 1 : focusables.length - 1;
-    } else {
-      nextIdx = idx < focusables.length - 1 ? idx + 1 : 0;
+    var els = getFocusables(container);
+    if (!els.length) return;
+    var cur = document.activeElement;
+    if (els.indexOf(cur) === -1) { els[0].focus(); scrollToFocus(els[0]); return; }
+
+    if (direction === 'left' || direction === 'right') {
+      // Within the current visual row when it has siblings (e.g. search row).
+      var mates = els.filter(function (e) { return sameRow(e, cur); });
+      if (mates.length > 1) {
+        var mi = mates.indexOf(cur);
+        var nmi = direction === 'right'
+          ? (mi < mates.length - 1 ? mi + 1 : 0)
+          : (mi > 0 ? mi - 1 : mates.length - 1);
+        mates[nmi].focus(); scrollToFocus(mates[nmi]);
+        return;
+      }
+      // Single-element row: fall back to sequential so list nav still works.
+      var si = els.indexOf(cur);
+      var nsi = direction === 'right'
+        ? (si < els.length - 1 ? si + 1 : 0)
+        : (si > 0 ? si - 1 : els.length - 1);
+      els[nsi].focus(); scrollToFocus(els[nsi]);
+      return;
     }
-    focusables[nextIdx].focus();
-    focusables[nextIdx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
+    // up / down: jump by row, keeping horizontal position where possible.
+    var rows = focusRows(els);
+    var curRow = -1;
+    for (var r = 0; r < rows.length; r++) {
+      if (rows[r].indexOf(cur) !== -1) { curRow = r; break; }
+    }
+    if (curRow === -1) { els[0].focus(); return; }
+    var targetRow = direction === 'up'
+      ? (curRow > 0 ? curRow - 1 : rows.length - 1)
+      : (curRow < rows.length - 1 ? curRow + 1 : 0);
+    var target = closestByX(rows[targetRow], cur) || rows[targetRow][0];
+    target.focus(); scrollToFocus(target);
   }
 
   // ==================== HOME SCREEN ====================
@@ -1360,20 +1427,18 @@
         return;
       }
 
-      // Other screens: text inputs swallow most keys.
+      // Other screens: text inputs still type letters, but arrows always
+      // navigate (so you can swipe right off the search field to Go/keyboard/mic
+      // and swipe down past the whole search row to the content).
       var ae = document.activeElement;
       var isInput = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA');
-      if (isInput && !['Escape', 'Enter', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+      if (isInput && !['Escape', 'Enter', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
 
       switch (e.key) {
         case 'ArrowUp':    moveFocus('up');    e.preventDefault(); break;
         case 'ArrowDown':  moveFocus('down');  e.preventDefault(); break;
-        case 'ArrowLeft':
-          if (!isInput) { moveFocus('left'); e.preventDefault(); }
-          break;
-        case 'ArrowRight':
-          if (!isInput) { moveFocus('right'); e.preventDefault(); }
-          break;
+        case 'ArrowLeft':  moveFocus('left');  e.preventDefault(); break;
+        case 'ArrowRight': moveFocus('right'); e.preventDefault(); break;
         case 'Enter':
           if (isInput && ae.dataset.submitAction) {
             handleAction(ae.dataset.submitAction, ae);
