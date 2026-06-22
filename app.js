@@ -41,6 +41,7 @@
       channelId: '',
       recent: [],
       history: [],       // { id, title, thumb, time }
+      resume: null,      // { id, title, thumb, time (sec), dur, savedAt } — last in-progress video
     },
     cache: {},
     player: null,
@@ -353,9 +354,11 @@
   }
 
   // ==================== PLAYER ====================
-  function playVideo(videoId, title, thumb) {
+  function playVideo(videoId, title, thumb, startSeconds) {
     pushHistory(videoId, title, thumb);
-    state.currentVideo = { id: videoId, title: title };
+    state.currentVideo = {
+      id: videoId, title: title, thumb: thumb || '', start: startSeconds || 0,
+    };
     document.getElementById('player-title').textContent = title || '';
     navigateTo('player');
   }
@@ -370,24 +373,32 @@
     var mount = document.getElementById('player-mount');
     mount.innerHTML = '<div id="yt-player"></div>';
 
+    var playerVars = {
+      autoplay: 1,
+      controls: 0,
+      modestbranding: 1,
+      rel: 0,
+      fs: 0,
+      disablekb: 1,
+      playsinline: 1,
+    };
+    var startAt = state.currentVideo.start;
+    if (startAt && startAt > 0) playerVars.start = Math.floor(startAt);
+
     var build = function () {
       state.player = new window.YT.Player('yt-player', {
         width: '600',
         height: '600',
         videoId: state.currentVideo.id,
-        playerVars: {
-          autoplay: 1,
-          controls: 0,
-          modestbranding: 1,
-          rel: 0,
-          fs: 0,
-          disablekb: 1,
-          playsinline: 1,
-        },
+        playerVars: playerVars,
         events: {
           onReady: function (e) {
             state.playerReady = true;
-            try { e.target.playVideo(); } catch (_) {}
+            try {
+              var start = state.currentVideo && state.currentVideo.start;
+              if (start && start > 0) e.target.seekTo(start, true);
+              e.target.playVideo();
+            } catch (_) {}
             startProgressTimer();
             // Overlay stays visible briefly so user sees the title, then state
             // events take over (hide on play, show on pause).
@@ -397,7 +408,11 @@
             // 1=playing, 2=paused, 0=ended, 3=buffering, 5=cued
             if (e.data === 1) {
               hideOverlay();
-            } else if (e.data === 2 || e.data === 0) {
+            } else if (e.data === 2) {
+              saveResumePoint();
+              showOverlay(true);
+            } else if (e.data === 0) {
+              clearResumePoint();  // finished — nothing to resume
               showOverlay(true);
             }
           },
@@ -417,6 +432,7 @@
   }
 
   function teardownPlayer() {
+    saveResumePoint();  // capture where we left off while the player is still alive
     stopProgressTimer();
     state.playerReady = false;
     if (state.player && typeof state.player.destroy === 'function') {
@@ -457,6 +473,48 @@
     showOverlay();
   }
 
+  // ==================== RESUME POINT ====================
+  var lastResumeSave = 0;
+  var RESUME_MAX_AGE = 7 * 24 * 60 * 60 * 1000;  // 7 days
+
+  // Persist the current position so the app can resume here next launch.
+  // Skips the very start (<5s) and the tail end (treats near-finish as done).
+  function saveResumePoint() {
+    if (!state.player || !state.playerReady || !state.currentVideo) return;
+    try {
+      var cur = state.player.getCurrentTime() || 0;
+      var dur = state.player.getDuration() || 0;
+      if (dur > 0 && cur >= dur - 15) { clearResumePoint(); return; }
+      if (cur < 5) return;
+      state.data.resume = {
+        id: state.currentVideo.id,
+        title: state.currentVideo.title || '',
+        thumb: state.currentVideo.thumb || '',
+        time: cur,
+        dur: dur,
+        savedAt: Date.now(),
+      };
+      lastResumeSave = Date.now();
+      saveData();
+    } catch (_) {}
+  }
+
+  function clearResumePoint() {
+    if (state.data.resume) {
+      state.data.resume = null;
+      saveData();
+    }
+  }
+
+  // Resume on launch only if there's a recent, valid, unfinished point.
+  function shouldResume() {
+    var r = state.data.resume;
+    if (!r || !r.id || !r.time) return false;
+    if (Date.now() - (r.savedAt || 0) > RESUME_MAX_AGE) return false;
+    if (r.dur > 0 && r.time >= r.dur - 15) return false;
+    return true;
+  }
+
   // ==================== PROGRESS BAR ====================
   var progressInterval = null;
 
@@ -479,6 +537,11 @@
       document.getElementById('player-duration').textContent = formatTime(dur);
       var pct = dur > 0 ? (cur / dur) * 100 : 0;
       document.getElementById('player-progress').style.width = pct + '%';
+      // Throttled resume save (~every 5s) while actively playing.
+      if (state.player.getPlayerState && state.player.getPlayerState() === 1 &&
+          Date.now() - lastResumeSave > 5000) {
+        saveResumePoint();
+      }
     } catch (_) {}
   }
 
@@ -1309,6 +1372,12 @@
         navigateTo('home', { addToHistory: false });
         runSearch(pendingQuery);
         pendingQuery = null;
+      } else if (shouldResume()) {
+        // Resume the last in-progress video at its saved spot. Home is the
+        // base screen so the back gesture from the player lands there.
+        navigateTo('home', { addToHistory: false });
+        var r = state.data.resume;
+        playVideo(r.id, r.title, r.thumb, r.time);
       } else {
         navigateTo('home', { addToHistory: false });
       }
