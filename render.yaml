@@ -12,3 +12,8 @@ services:
       - path: /*
         name: Referrer-Policy
         value: strict-origin-when-cross-origin
+      # Always revalidate so a new favicon / manifest shows up immediately
+      # (mirrors the config that makes the icon refresh on the glasses).
+      - path: /*
+        name: Cache-Control
+        value: max-age=0, must-revalidate
