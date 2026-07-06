@@ -546,6 +546,7 @@
     setPlayerHint('controls');
     showOverlay(true);
     updatePlayPauseIcon();
+    updateSeekLabels();
     // Default focus to play/pause if nothing in the bar is focused yet.
     var btns = playerControlButtons();
     if (btns.indexOf(document.activeElement) === -1) {
@@ -586,7 +587,7 @@
     if (!h) return;
     h.textContent = mode === 'controls'
       ? 'Swipe ◀ ▶ to choose · Tap to select'
-      : 'Swipe ◀ ▶ to seek · Tap for controls';
+      : 'Swipe ◀ ▶ to jump 10% · Tap for controls';
   }
 
   function togglePlay() {
@@ -598,13 +599,32 @@
     // Overlay show/hide is driven by onStateChange — don't double-toggle here.
   }
 
-  function seekBy(delta) {
+  // Seek by a fraction of the video length so any point is quick to reach:
+  // ~10% per swipe (min 15s) → ~5 swipes to the middle, ~10 across the whole
+  // video, whether it's 5 minutes or 2 hours long.
+  function seekStepAmount() {
+    var dur = (state.player && state.playerReady && state.player.getDuration()) || 0;
+    return dur > 0 ? Math.max(15, Math.round(dur * 0.10)) : 30;
+  }
+
+  function seekStep(dir) {
     if (!state.player || !state.playerReady) return;
     try {
-      var t = state.player.getCurrentTime() + delta;
-      state.player.seekTo(Math.max(0, t), true);
+      var dur = state.player.getDuration() || 0;
+      var t = state.player.getCurrentTime() + dir * seekStepAmount();
+      var maxT = dur > 0 ? dur - 1 : t;
+      state.player.seekTo(Math.max(0, Math.min(maxT, t)), true);
     } catch (_) {}
     showOverlay();
+  }
+
+  // Show the actual jump size on the control-bar seek buttons (e.g. "+1:30").
+  function updateSeekLabels() {
+    var label = formatTime(seekStepAmount());
+    var back = document.querySelector('#player-controls [data-action="seek-back"] .pc-sub');
+    var fwd = document.querySelector('#player-controls [data-action="seek-fwd"] .pc-sub');
+    if (back) back.textContent = '−' + label;
+    if (fwd) fwd.textContent = '+' + label;
   }
 
   function adjustVolume(delta) {
@@ -1301,8 +1321,8 @@
       }
       case 'voice-search': startVoiceSearch(); break;
       case 'toggle-play': togglePlay(); break;
-      case 'seek-back': seekBy(-10); break;
-      case 'seek-fwd': seekBy(10); break;
+      case 'seek-back': seekStep(-1); break;
+      case 'seek-fwd': seekStep(1); break;
       case 'open-keyboard': openKeyboard(); break;
       case 'kb-char': kbAppend(element.dataset.char || ''); break;
       case 'kb-space': kbAppend(' '); break;
@@ -1357,14 +1377,14 @@
       if (state.currentScreen === 'player') {
         switch (e.key) {
           case 'ArrowLeft':
-            // Paused: move between control buttons. Playing: rewind.
+            // Paused: move between control buttons. Playing: jump back.
             if (controlsActive) moveControlFocus(-1);
-            else seekBy(-10);
+            else seekStep(-1);
             e.preventDefault();
             return;
           case 'ArrowRight':
             if (controlsActive) moveControlFocus(1);
-            else seekBy(10);
+            else seekStep(1);
             e.preventDefault();
             return;
           case 'ArrowUp':
