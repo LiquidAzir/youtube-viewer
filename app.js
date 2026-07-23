@@ -521,6 +521,8 @@
     }
     state.player = null;
     state.currentVideo = null;
+    resetSeekChain();
+    hideSeekIndicator();
     controlsActive = false;
     var ctrls = document.getElementById('player-controls');
     if (ctrls) ctrls.classList.add('hidden');
@@ -587,7 +589,7 @@
     if (!h) return;
     h.textContent = mode === 'controls'
       ? 'Swipe ◀ ▶ to choose · Tap to select'
-      : 'Swipe ◀ ▶ to jump 10% · Tap for controls';
+      : 'Swipe ◀ ▶ to seek · keep swiping to go faster';
   }
 
   function togglePlay() {
@@ -596,35 +598,108 @@
     // 1 = playing, 2 = paused, 3 = buffering, 5 = cued
     if (s === 1) state.player.pauseVideo();
     else state.player.playVideo();
+    // Play/pause ends any seek burst, so the next jump starts small again.
+    resetSeekChain();
+    hideSeekIndicator();
     // Overlay show/hide is driven by onStateChange — don't double-toggle here.
   }
 
-  // Seek by a fraction of the video length so any point is quick to reach:
-  // ~10% per swipe (min 15s) → ~5 swipes to the middle, ~10 across the whole
-  // video, whether it's 5 minutes or 2 hours long.
-  function seekStepAmount() {
-    var dur = (state.player && state.playerReady && state.player.getDuration()) || 0;
-    return dur > 0 ? Math.max(15, Math.round(dur * 0.10)) : 30;
+  // ==================== ACCELERATING SEEK ====================
+  // A single swipe nudges 10s (precise). Swipe again quickly and each jump
+  // doubles — 10s, 20s, 40s, 80s … so a burst of swipes crosses a long video
+  // fast. Pause for SEEK_CHAIN_MS and it resets to 10s. The ramp is capped at
+  // 10% of the video length so short clips never over-jump.
+  var SEEK_BASE = 10;        // seconds for an isolated swipe
+  var SEEK_CHAIN_MS = 1200;  // window that counts swipes as consecutive
+  var seekChain = { dir: 0, count: 0, last: 0 };
+  var seekLabelTimer = null;
+  var seekIndicatorTimer = null;
+
+  function currentDuration() {
+    return (state.player && state.playerReady && state.player.getDuration()) || 0;
+  }
+
+  function seekCapFor(dur) {
+    return dur > 0 ? Math.max(30, Math.round(dur * 0.10)) : 120;
+  }
+
+  function seekStepFor(count, dur) {
+    var step = SEEK_BASE * Math.pow(2, Math.max(0, count - 1));
+    return Math.min(Math.round(step), seekCapFor(dur));
+  }
+
+  // How far the NEXT jump in this direction would go, given the live chain.
+  function nextSeekStep(dir) {
+    var chained = seekChain.dir === dir &&
+      (Date.now() - seekChain.last) < SEEK_CHAIN_MS;
+    return seekStepFor(chained ? seekChain.count + 1 : 1, currentDuration());
+  }
+
+  function resetSeekChain() {
+    seekChain.dir = 0;
+    seekChain.count = 0;
+    seekChain.last = 0;
   }
 
   function seekStep(dir) {
     if (!state.player || !state.playerReady) return;
+    var dur = currentDuration();
+    var now = Date.now();
+    if (seekChain.dir === dir && (now - seekChain.last) < SEEK_CHAIN_MS) {
+      seekChain.count++;
+    } else {
+      seekChain.count = 1;
+      seekChain.dir = dir;
+    }
+    seekChain.last = now;
+
+    var step = seekStepFor(seekChain.count, dur);
+    var target;
     try {
-      var dur = state.player.getDuration() || 0;
-      var t = state.player.getCurrentTime() + dir * seekStepAmount();
-      var maxT = dur > 0 ? dur - 1 : t;
-      state.player.seekTo(Math.max(0, Math.min(maxT, t)), true);
-    } catch (_) {}
+      target = state.player.getCurrentTime() + dir * step;
+      var maxT = dur > 0 ? dur - 1 : target;
+      target = Math.max(0, Math.min(maxT, target));
+      state.player.seekTo(target, true);
+    } catch (_) { return; }
+
+    showSeekIndicator(dir, step, target);
     showOverlay();
+    updateSeekLabels();
+    // When the chain lapses, drop the labels back to the base step.
+    clearTimeout(seekLabelTimer);
+    seekLabelTimer = setTimeout(function () {
+      resetSeekChain();
+      updateSeekLabels();
+    }, SEEK_CHAIN_MS + 100);
   }
 
-  // Show the actual jump size on the control-bar seek buttons (e.g. "+1:30").
+  // Big centered readout: how far this jump went and where it landed.
+  function showSeekIndicator(dir, step, target) {
+    var el = document.getElementById('seek-indicator');
+    var tx = document.getElementById('seek-indicator-text');
+    if (!el || !tx) return;
+    tx.textContent = (dir > 0 ? '⏩ +' : '⏪ −') +
+      formatTime(step) + '   →   ' + formatTime(target);
+    el.classList.remove('hidden');
+    clearTimeout(seekIndicatorTimer);
+    seekIndicatorTimer = setTimeout(function () {
+      el.classList.add('hidden');
+    }, 1100);
+  }
+
+  function hideSeekIndicator() {
+    clearTimeout(seekIndicatorTimer);
+    var el = document.getElementById('seek-indicator');
+    if (el) el.classList.add('hidden');
+  }
+
+  // Control-bar seek buttons show what the next tap will jump (grows as you
+  // tap repeatedly, then falls back to 0:10 once the chain lapses).
   function updateSeekLabels() {
-    var label = formatTime(seekStepAmount());
     var back = document.querySelector('#player-controls [data-action="seek-back"] .pc-sub');
     var fwd = document.querySelector('#player-controls [data-action="seek-fwd"] .pc-sub');
-    if (back) back.textContent = '−' + label;
-    if (fwd) fwd.textContent = '+' + label;
+    if (back) back.textContent = '−' + formatTime(nextSeekStep(-1));
+    if (fwd) fwd.textContent = '+' + formatTime(nextSeekStep(1));
   }
 
   function adjustVolume(delta) {
