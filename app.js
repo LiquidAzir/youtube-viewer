@@ -13,23 +13,10 @@
     recentMax: 5,
   };
 
-  // ==================== EMBEDDED CONFIG (config.js) ====================
-  // Read the shared API key from config.js. Falls back to the per-user key in
-  // localStorage when this isn't set, so anyone bringing their own key still
-  // overrides the embedded default.
-  function getEmbeddedApiKey() {
-    var cfg = window.YOUTUBE_VIEWER_CONFIG;
-    if (!cfg) return '';
-    var k = cfg.EMBEDDED_API_KEY || '';
-    if (!k || k === 'YOUR_API_KEY_HERE') return '';
-    return k;
-  }
+  // Public visitors always supply their own key; config.js cannot opt everyone
+  // into the site owner's Google Cloud project.
   function getEffectiveApiKey() {
-    // Personal key (from settings or URL param) wins over the shared one.
-    return state.data.apiKey || getEmbeddedApiKey();
-  }
-  function isUsingEmbeddedKey() {
-    return !state.data.apiKey && !!getEmbeddedApiKey();
+    return state.data.apiKey;
   }
 
   // ==================== STATE ====================
@@ -304,16 +291,9 @@
   function showQuotaExceeded() {
     var errorEl = document.getElementById('results-error');
     var msgEl = document.getElementById('results-error-message');
-    if (isUsingEmbeddedKey()) {
-      msgEl.innerHTML =
-        'Today’s shared search limit has been reached.<br>' +
-        'Add your own free key in Settings to keep searching — ' +
-        'each personal key gets ~100 searches per day.';
-    } else {
-      msgEl.innerHTML =
-        'You’ve hit today’s YouTube quota for your personal key.<br>' +
-        'It resets at midnight Pacific time.';
-    }
+    msgEl.innerHTML =
+      'Your project’s YouTube API quota has been reached.<br>' +
+      'Check its quota and reset information in Google Cloud.';
     errorEl.classList.remove('hidden');
     // Replace the default "Back" button with two: Settings and Back.
     var existing = errorEl.querySelector('.error-actions');
@@ -321,7 +301,7 @@
     var actions = document.createElement('div');
     actions.className = 'error-actions';
     actions.innerHTML =
-      '<button class="nav-item primary focusable" data-action="open-settings">Get your own key</button>' +
+      '<button class="nav-item primary focusable" data-action="open-settings">Open Settings</button>' +
       '<button class="nav-item focusable" data-action="back">Back</button>';
     errorEl.appendChild(actions);
     // Hide the original single back button (it'll be in our actions row instead)
@@ -920,12 +900,7 @@
       el.classList.add('personal');
       icon = '✓';
       label = 'Using your personal key';
-      detail = 'Higher quota — ~100 searches/day just for you.';
-    } else if (getEmbeddedApiKey()) {
-      el.classList.add('shared');
-      icon = '✱';
-      label = 'Using the shared key';
-      detail = 'Works out of the box. Quota is shared with all users — add your own below if it runs out.';
+      detail = 'Search uses your key and your Google Cloud project’s API quota.';
     } else {
       el.classList.add('none');
       icon = '⚠';
@@ -941,6 +916,16 @@
     // Show/hide Clear button based on whether a personal key exists.
     var clearBtn = document.getElementById('clear-apikey-btn');
     if (clearBtn) clearBtn.classList.toggle('hidden', !state.data.apiKey);
+    renderKeyHelp();
+  }
+
+  function renderKeyHelp() {
+    var label = document.getElementById('personal-key-label');
+    if (label) label.textContent = 'Personal API key (required)';
+    var help = document.getElementById('home-key-help');
+    if (help) help.textContent = state.data.apiKey
+      ? 'Search uses your YouTube Data API v3 key. Availability depends on your Google Cloud project’s API quota.'
+      : 'Search requires your own YouTube Data API v3 key in Settings. No shared key or channel is included.';
   }
 
   // ==================== ON-SCREEN KEYBOARD ====================
@@ -1286,12 +1271,9 @@
   function handleMineError(prefix, err) {
     var msg;
     if (err.reason === 'quotaExceeded' || err.reason === 'dailyLimitExceeded') {
-      msg = isUsingEmbeddedKey()
-        ? 'Shared daily limit reached. Add your own key in Settings.'
-        : 'Daily quota reached. Resets at midnight Pacific time.';
+      msg = 'API quota reached. Check your project’s quota and reset information in Google Cloud.';
     } else if (err.reason === 'subscriptionForbidden') {
-      msg = 'Your subscriptions are private. In YouTube: Settings → Privacy → ' +
-            'turn off "Keep all my subscriptions private".';
+      msg = 'Those subscriptions are private. This app can read public channel information only.';
     } else if (err.reason === 'playlistNotFound' || err.reason === 'playlistItemsNotAccessible') {
       msg = "That playlist isn't public.";
     } else if (err.reason === 'keyInvalid') {
@@ -1346,7 +1328,18 @@
         saveData();
         document.getElementById('apikey-input').value = '';
         renderKeyStatus();
-        showToast('Personal key removed — using shared key');
+        showToast('Personal key removed — add a key to search');
+        break;
+      }
+      case 'clear-device-data': {
+        // Reload cancels pending requests and discards rendered results as well
+        // as the key, channel, searches, history and resume position.
+        teardownPlayer();
+        try { localStorage.removeItem(CONFIG.storageKey); } catch (_) {}
+        state.data = { apiKey: '', channelId: '', recent: [], history: [], resume: null };
+        state.cache = {};
+        state.mine = { channelCache: {} };
+        window.location.replace(window.location.pathname);
         break;
       }
       case 'save-channelid': {
@@ -1409,6 +1402,7 @@
 
   function onScreenEnter(screenId) {
     if (screenId === 'home') {
+      renderKeyHelp();
       renderRecent();
       renderHistory();
     } else if (screenId === 'settings') {
@@ -1551,39 +1545,38 @@
   }
 
   // ==================== URL PARAM BOOTSTRAP ====================
-  // Supported params (stripped from URL after first read):
-  //   ?key=AIza...    YouTube Data API key, saved to localStorage
-  //   ?channel=UC...  your channel ID for the My YouTube tab, saved
-  //   ?q=lofi+beats   one-shot search run on load (NOT saved)
-  // Example URL to register on the glasses (no typing required):
-  //   https://youtube-viewer.onrender.com?key=AIza...&channel=UC...
+  // Prefer #key=...&channel=... in a private pairing link: fragments aren't
+  // sent to the static host. Legacy query links remain compatible and scrubbed.
+  // q is an optional one-shot search. Public catalog QRs contain none of these.
   var pendingQuery = null;
   function bootstrapFromUrl() {
     try {
       var params = new URLSearchParams(window.location.search);
+      var fragment = new URLSearchParams(window.location.hash.slice(1));
       var changed = false;
-      var urlKey = params.get('key');
+      var urlKey = fragment.get('key') || params.get('key');
       if (urlKey && urlKey.length > 10) {
         state.data.apiKey = urlKey;
-        params.delete('key');
         changed = true;
       }
-      var urlChannel = params.get('channel');
+      var urlChannel = fragment.get('channel') || params.get('channel');
       if (urlChannel && urlChannel.length > 6) {
         state.data.channelId = urlChannel;
-        params.delete('channel');
         changed = true;
       }
-      var urlQuery = params.get('q');
+      var urlQuery = fragment.get('q') || params.get('q');
       if (urlQuery && urlQuery.trim()) {
         pendingQuery = urlQuery.trim();
-        params.delete('q');
         changed = true;
       }
+      ['key', 'channel', 'q'].forEach(function (name) {
+        if (params.has(name) || fragment.has(name)) changed = true;
+        params.delete(name); fragment.delete(name);
+      });
       if (changed) {
         saveData();
         if (window.history && window.history.replaceState) {
-          var clean = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+          var clean = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + (fragment.toString() ? '#' + fragment.toString() : '');
           window.history.replaceState(null, '', clean);
         }
       }
@@ -1598,7 +1591,7 @@
     bootstrapFromUrl();
     setTimeout(function () {
       if (!getEffectiveApiKey()) {
-        // No personal key and no embedded shared key -> force setup.
+        // Every visitor starts with their own key setup.
         navigateTo('settings', { addToHistory: false });
       } else if (pendingQuery) {
         navigateTo('home', { addToHistory: false });

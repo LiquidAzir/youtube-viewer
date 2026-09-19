@@ -8,3 +8,9 @@ node_modules/
 # Locally-generated QR codes (contain personal API key)
 qr-paired.png
 qr-publish.png
+
+dist/
+
+test-results/
+
+qr-paired*.png

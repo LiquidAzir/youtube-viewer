@@ -64,9 +64,7 @@
         <div class="info-card" id="home-info-card">
           <div class="info-card-title">About this app</div>
           <div class="info-card-text">
-            Search is powered by the free <strong>YouTube Data API v3</strong>.
-            The shared key gives everyone ~100 searches/day combined.
-            For your own ~100/day:
+            <span id="home-key-help">Search requires your own YouTube Data API v3 key. Add it in Settings.</span>
             <br>1. Visit <em>console.cloud.google.com</em>
             <br>2. Create a project &rarr; enable <em>YouTube Data API v3</em>
             <br>3. Credentials &rarr; Create credentials &rarr; API key
@@ -227,12 +225,12 @@
       </header>
       <div class="content">
         <div class="key-status" id="key-status">
-          <!-- Filled in by JS: shows whether shared or personal key is active. -->
+          <!-- Filled in by JS: personal key status. -->
         </div>
 
-        <div class="section-label">Personal API key (optional)</div>
+        <div class="section-label" id="personal-key-label">Personal API key (required)</div>
         <input
-          type="text"
+          type="password"
           id="apikey-input"
           class="text-input focusable"
           placeholder="AIza&hellip;"
@@ -244,13 +242,13 @@
           <button class="nav-item focusable" id="clear-apikey-btn" data-action="clear-apikey">Clear</button>
         </div>
         <div class="help-text">
-          <strong>3-minute setup for your own ~100 daily searches:</strong><br>
+          <strong>Set up your own YouTube Data API key:</strong><br>
           1. Open <em>console.cloud.google.com</em><br>
           2. Create a project (any name)<br>
           3. APIs &amp; Services &rarr; Enable &rarr; <em>YouTube Data API v3</em><br>
           4. Credentials &rarr; Create credentials &rarr; API key<br>
           5. Copy <code>AIza&hellip;</code> &rarr; paste above &rarr; Save<br>
-          Restrict the key to <em>YouTube Data API v3</em> after creating it.
+          Restrict the key to <em>YouTube Data API v3</em> and this app's website address. Usage is subject to your Google Cloud project's API quota. No owner key or channel is supplied.
         </div>
 
         <div class="divider"></div>
@@ -272,10 +270,12 @@
           Shows your uploads + public playlists in the <strong>My YouTube</strong> tab.<br>
           1. Find your ID at <em>youtube.com/account_advanced</em> (starts with <code>UC</code>)<br>
           2. Paste above &rarr; Save<br>
-          To see your <strong>subscriptions</strong>: YouTube &rarr; Settings &rarr; Privacy &rarr;
-          turn off &ldquo;Keep all my subscriptions private.&rdquo;
+          This app reads public channel information only. It does not sign you into Google or give access to private playlists or subscriptions.
         </div>
-
+        <div class="divider"></div>
+        <div class="section-label">This device</div>
+        <div class="help-text">Your key, channel, searches and watch history are saved only in this app on this device. Clear them before lending or sharing the device.</div>
+        <button class="nav-item focusable" data-action="clear-device-data">Clear all app data on this device</button>
       </div>
     </div>
 

@@ -8,7 +8,7 @@ Run from the youtube-viewer/ directory:
 
 Scan the resulting qr-paired.png with your phone camera. The Meta AI app
 opens with the web app pre-filled; on first launch on the glasses the
-?key=... (and optional ?channel=...) are read, saved to localStorage,
+#key=... (and optional #channel=...) are read, saved to localStorage,
 then stripped from the URL. No typing on the glasses.
 """
 
@@ -20,8 +20,8 @@ import urllib.parse
 
 DEFAULT_RENDER_URL = "https://youtube-viewer-jezb.onrender.com"
 APP_NAME = "youtube-viewer"
-# Kevin's channel (public ID). Override with --channel, or "" to omit.
-DEFAULT_CHANNEL = "UCWZk9BUIEYZuMVdWxRBh2Sg"
+# Each visitor supplies their own channel if desired. No owner default.
+DEFAULT_CHANNEL = ""
 
 
 def main() -> int:
@@ -40,7 +40,7 @@ def main() -> int:
         print("warning: key doesn't look like a Google API key (should start with AIza)",
               file=sys.stderr)
 
-    paired_url = f"{args.url}?key={urllib.parse.quote(args.api_key, safe='')}"
+    paired_url = f"{args.url}#key={urllib.parse.quote(args.api_key, safe='')}"
     if args.channel:
         paired_url += f"&channel={urllib.parse.quote(args.channel, safe='')}"
     encoded_url = urllib.parse.quote(paired_url, safe="")
